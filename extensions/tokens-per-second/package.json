@@ -1,0 +1,9 @@
+{
+  "name": "pi-extension-tokens-per-second",
+  "version": "1.0.0",
+  "description": "Tokens-per-second status bar extension for Pi. Shows live TPS, context usage, cost, and git branch in a rich multi-line footer.",
+  "keywords": ["pi-package", "pi-extension"],
+  "pi": {
+    "extensions": ["src/index.ts"]
+  }
+}

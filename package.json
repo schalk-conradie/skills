@@ -1,0 +1,10 @@
+{
+  "name": "ai-collection",
+  "version": "1.0.0",
+  "description": "A collection of Pi extensions and skills.",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["extensions/tokens-per-second/src/index.ts", "extensions/exam-study/index.ts"],
+    "skills": ["skills"]
+  }
+}
