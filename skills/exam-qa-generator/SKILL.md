@@ -113,7 +113,7 @@ Generate approximately **100 questions** distributed across the training content
 
 ### Step 5 — Write the output file
 
-Write the complete JSON to a file named `qa-bank.json` in the training directory.
+Write the complete JSON to a file named `{exam-code}.json` (e.g., `pl-400.json`, `pl-900.json`) in the training directory.
 
 Validate the JSON:
 - `questionCount` must equal `questions.length`
