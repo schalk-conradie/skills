@@ -1,6 +1,16 @@
 {
   "version": 3,
-  "skills": {},
+  "skills": {
+    "exam-ready": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/github/awesome-copilot.git",
+      "skillPath": "skills/exam-ready/SKILL.md",
+      "skillFolderHash": "ee7cb6dc5d88c9849f257ebeebefb752b327642d",
+      "installedAt": "2026-05-15T08:37:27.265Z",
+      "updatedAt": "2026-05-15T08:37:27.265Z"
+    }
+  },
   "dismissed": {
     "findSkillsPrompt": true
   },

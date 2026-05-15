@@ -17,35 +17,30 @@ pi install git:github.com/schalk-conradie/ai-collection
 pi install /path/to/ai-collection
 ```
 
-## Install Individual Extensions
+## Install Specific Resources
 
-### tokens-per-second
+`pi install git:` clones the whole repo. To load only certain extensions or skills, install the collection and filter in `~/.pi/agent/settings.json`:
 
-Rich multi-line footer showing live tokens-per-second, context usage, API cost, git branch, and model info.
-
-```bash
-# Standalone install
-pi install git:github.com/schalk-conradie/ai-collection#main --filter extensions/tokens-per-second
-
-# Or install the whole collection and disable what you don't need
-pi install git:github.com/schalk-conradie/ai-collection
+```json
+{
+  "packages": [
+    {
+      "source": "git:github.com/schalk-conradie/ai-collection",
+      "extensions": ["extensions/tokens-per-second/src/index.ts"],
+      "skills": []
+    }
+  ]
+}
 ```
 
-### exam-study
+Omit a key (`"extensions"`, `"skills"`) to load all of that type. Use `[]` to load none. You can also use glob patterns and `!` exclusions.
 
-Interactive study assistant for Markdown exam notes. Ask questions from your material or generate Microsoft-style practice quizzes with a full terminal UI.
+### Local install of a single extension
 
-```bash
-# Standalone install
-pi install git:github.com/schalk-conradie/ai-collection#main --filter extensions/exam-study
-```
-
-## Install Individual Skills
-
-Skills are auto-loaded when relevant. Install the whole collection and pick what you use:
+If you've cloned the repo locally, you can install a subdirectory directly:
 
 ```bash
-pi install git:github.com/schalk-conradie/ai-collection
+pi install /path/to/ai-collection/extensions/tokens-per-second
 ```
 
 ## Included
@@ -69,28 +64,8 @@ pi install git:github.com/schalk-conradie/ai-collection
 ## Managing Installed Packages
 
 ```bash
-# List installed packages
-pi list
-
-# Update all packages
-pi update
-
-# Remove the collection
-pi remove git:github.com/schalk-conradie/ai-collection
-```
-
-## Filtering Resources
-
-If you only want specific extensions or skills from the collection, use package filtering in your settings:
-
-```json
-{
-  "packages": [
-    {
-      "source": "git:github.com/schalk-conradie/ai-collection",
-      "extensions": ["extensions/tokens-per-second/src/index.ts"],
-      "skills": []
-    }
-  ]
-}
+pi list                               # show installed packages
+pi update                             # update all packages
+pi update git:github.com/schalk-conradie/ai-collection  # update just this one
+pi remove git:github.com/schalk-conradie/ai-collection  # remove it
 ```
