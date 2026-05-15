@@ -1,6 +1,6 @@
 ---
 name: exam-qa-generator
-description: Generates multiple-choice question and answer banks from Microsoft Learn training data. Use when the user wants to create exam practice questions from downloaded Microsoft Learn study material.
+description: Generates multiple-choice and multiple-select question and answer banks from Microsoft Learn training data. Use when the user wants to create exam practice questions from downloaded Microsoft Learn study material.
 ---
 
 # Exam Q&A Generator
@@ -21,18 +21,36 @@ A single JSON file structured as:
     "level": "Intermediate"
   },
   "generatedAt": "2025-05-15T12:00:00Z",
-  "questionCount": 100,
+  "questionCount": 50,
   "questions": [
     {
       "id": 1,
       "topic": "Configure message formatting in agent topics",
+      "type": "single",
       "question": "In Microsoft Copilot Studio, which feature allows you to define multiple phrasings for a single message node so the experience feels different on repeated visits?",
-      "answer": "Message variations",
+      "answers": ["Message variations"],
       "options": [
         "Message variations",
         "Quick replies",
         "Adaptive Cards",
         "Topic branching"
+      ]
+    },
+    {
+      "id": 2,
+      "topic": "Manage environment variables",
+      "type": "multiple",
+      "question": "Which of the following are valid ways to store environment-specific configuration in a Power Platform solution? (Choose all that apply.)",
+      "answers": [
+        "Environment variables",
+        "Custom connectors"
+      ],
+      "options": [
+        "Environment variables",
+        "Custom connectors",
+        "Business rules",
+        "Workflow processes",
+        "Plugin assemblies"
       ]
     }
   ]
@@ -48,9 +66,10 @@ A single JSON file structured as:
 | `questionCount` | Must match the actual length of the `questions` array. |
 | `questions[].id` | Sequential integer starting at 1. |
 | `questions[].topic` | Short label derived from the module/section heading the question covers. Used to group related questions. |
+| `questions[].type` | Either `single` (multiple choice — one correct answer) or `multiple` (multiple select — 1–5 correct answers). |
 | `questions[].question` | Clear, specific question. No tricks — test real knowledge. |
-| `questions[].answer` | Must be **exactly** one of the option strings. |
-| `questions[].options` | Array of **4** plausible options (A–D style). Exactly one correct. Distractors must be realistic and relate to the domain. |
+| `questions[].answers` | Array of correct option strings. For `single` type, exactly **1** element. For `multiple` type, **1–5** elements. Every element must appear verbatim in the `options` array. |
+| `questions[].options` | Array of all plausible options. For `single` type, exactly **4** options. For `multiple` type, exactly **5** options. Distractors must be realistic and relate to the domain. |
 
 ## Generation process
 
@@ -83,12 +102,13 @@ For very large files, read in chunks using offset/limit until you have consumed 
 
 ### Step 4 — Generate questions
 
-Generate approximately **100 questions** distributed across the training content. Follow these guidelines:
+Generate questions distributed across the training content. If the user specifies a number, generate exactly that many questions. If no number is given, generate **50** questions. Follow these guidelines:
 
 **Distribution:**
 - Spread questions proportionally across all training files based on their content depth.
 - If a file has very little content (e.g., only headings with no body), skip it and redistribute to files with real content.
 - Each distinct module/section should have at least a few questions.
+- Question type mix: aim for roughly **70% `single`** and **30% `multiple`**, but adjust based on the material. If the content naturally lends itself to many multi-select scenarios, go up to 40% `multiple`.
 
 **Quality guidelines:**
 - Questions should test **understanding and application**, not just recall of exact phrases.
@@ -101,10 +121,22 @@ Generate approximately **100 questions** distributed across the training content
   - Best practice ("What is the recommended approach for…?")
 - Avoid trivial questions that can be answered by a single word from a heading.
 - Avoid negative questions ("Which of the following is NOT…") — use them sparingly at most.
-- Each question must have exactly **4 options**.
-- The correct answer must be unambiguously correct based on the training material.
-- Distractors must be plausible and come from related concepts in the material — not obviously wrong.
 - Do **not** invent features, facts, or concepts that are not present in the training material.
+
+**Single-choice (`single`) questions:**
+- Exactly **4 options**.
+- Exactly **1 correct answer**.
+- Distractors must be plausible and come from related concepts in the material — not obviously wrong.
+
+**Multiple-select (`multiple`) questions:**
+- Exactly **5 options** total.
+- **1–5 correct answers**.
+- Use these when the material describes:
+  - A list of valid steps, requirements, or prerequisites.
+  - Multiple features that apply to a scenario.
+  - Several configuration options that must all be selected.
+- Distractors must be plausible — they can be real concepts from the material that do **not** apply to the specific question.
+- Phrase the question clearly so the user knows to select all that apply (e.g., "Which of the following…? (Choose all that apply.)").
 
 **Topic assignment:**
 - Derive the `topic` from the nearest module or section heading.
@@ -117,7 +149,9 @@ Write the complete JSON to a file named `{exam-code}.json` (e.g., `pl-400.json`,
 
 Validate the JSON:
 - `questionCount` must equal `questions.length`
-- Every `answer` must appear verbatim in its corresponding `options` array
+- Every element in `answers` must appear verbatim in its corresponding `options` array
+- For `single` type: `answers.length === 1` and `options.length === 4`
+- For `multiple` type: `answers.length` is between 1 and 5, and `options.length === 5`
 - No duplicate questions
 - All `id` values are sequential from 1
 
@@ -130,8 +164,9 @@ When the user says:
 - "Generate a Q&A bank from this material"
 - "Create practice questions for my exam"
 - "Build a question bank from the training data in ./microsoft-learn-ab-620"
+- "Generate 80 practice questions for PL-400"
 
-Then follow the process above.
+Then follow the process above. The user may optionally specify a number of questions (e.g., "Generate 80 questions"). If no number is given, default to 50.
 
 ## Usage from command line
 
