@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Download Microsoft Learn study material for a Microsoft certification exam code.
 
-Produces a clean output with:
-  - SUMMARY.md   — exam overview, objectives, links to each learning path
-  - One .md file per learning path with all modules and unit content concatenated
+Produces a lean two-file output:
+  - SUMMARY.md  — exam metadata, skills measured, learning path index
+  - CONTENT.md  — all learning path modules and unit lesson text
 
 Example:
     python3 download_exam_docs.py AB-620
@@ -125,14 +125,6 @@ def _strip_tags(s: str) -> str:
     return " ".join(html.unescape(s).split())
 
 
-def _slugify(text: str, max_len: int = 80) -> str:
-    text = html.unescape(text or "").strip().lower()
-    text = re.sub(r"[`'\u2019\u2018\"()]+", "", text)
-    text = re.sub(r"&", " and ", text)
-    text = re.sub(r"[^a-z0-9]+", "-", text)
-    text = re.sub(r"-+", "-", text).strip("-")
-    return (text[:max_len].strip("-") or "untitled")
-
 
 def _title_from_slug(slug: str) -> str:
     slug = slug.strip("/").split("/")[-1]
@@ -152,10 +144,76 @@ def _is_training_path_url(url: str) -> bool:
 
 def _is_training_module_url(url: str) -> bool:
     path = urlparse(url).path.lower()
-    return _is_learn_url(url) and "/training/modules/" in path and not re.search(r"/training/modules/[^/]+/\d-", path)
+    if not (_is_learn_url(url) and "/training/modules/" in path):
+        return False
+    # Exclude unit pages (anything after the module slug).
+    return re.fullmatch(r"/en-us/training/modules/[^/]+/?", path) is not None
 
 
-# ── HTML link extraction ────────────────────────────────────────────────────
+def _module_url_from_slug(slug: str) -> str:
+    return _canonical(f"{LEARN}/en-us/training/modules/{slug}/")
+
+
+def _extract_module_urls_from_path(path_url: str) -> List[Tuple[str, str]]:
+    """Get module URLs from a learning path overview page."""
+    overview_md = fetch_markdown(path_url)
+    modules: List[Tuple[str, str]] = []
+    seen = set()
+    for slug in re.findall(r"modules/([a-z0-9-]+)", overview_md):
+        if slug in seen:
+            continue
+        seen.add(slug)
+        url = _module_url_from_slug(slug)
+        modules.append((_title_from_slug(slug), url))
+
+    if modules:
+        return modules
+
+    html_text = fetch_html(path_url)
+    return [(t, u) for t, u in _extract_html_links(html_text, path_url) if _is_training_module_url(u)]
+
+
+def _extract_unit_urls_from_module(module_url: str) -> List[Tuple[str, str]]:
+    """Get unit URLs from a module page (supports numbered and slug-based unit links)."""
+    module_md = fetch_markdown(module_url)
+    unit_links: List[Tuple[str, str]] = []
+    seen = set()
+
+    def add_unit(title: str, slug: str) -> None:
+        slug = slug.strip()
+        if not slug or slug.startswith(("http://", "https://", "/")):
+            return
+        url = _canonical(urljoin(module_url.rstrip("/") + "/", slug))
+        if url in seen:
+            return
+        seen.add(url)
+        unit_links.append((title.strip(), url))
+
+    for match in re.finditer(r"\[([^\]]+)\]\(([^)]+)\)\s*min\b", module_md):
+        add_unit(match.group(1), match.group(2))
+
+    if not unit_links:
+        for match in re.finditer(r"\[([^\]]+)\]\((\d-[^)]+)\)", module_md):
+            add_unit(match.group(1), match.group(2))
+
+    if unit_links:
+        return unit_links
+
+    html_text = fetch_html(module_url)
+    for match in re.finditer(r'<a\b[^>]*href=["\'](\d-[^"\']+)["\'][^>]*>(.*?)</a>', html_text, re.I | re.S):
+        add_unit(_strip_tags(match.group(2)) or _title_from_slug(match.group(1)), match.group(1))
+
+    return unit_links
+
+
+def _module_title_from_markdown(module_url: str) -> str:
+    module_md = fetch_markdown(module_url)
+    titles = re.findall(r"^#\s+(.+)$", module_md, re.M)
+    if len(titles) >= 2:
+        return re.sub(r"\s*\|\s*Microsoft Learn\s*$", "", titles[1]).strip()
+    if titles:
+        return re.sub(r"\s*\|\s*Microsoft Learn\s*$", "", titles[0]).strip()
+    return _title_from_slug(urlparse(module_url).path)
 
 def _extract_html_links(html_text: str, base_url: str) -> List[Tuple[str, str]]:
     links: List[Tuple[str, str]] = []
@@ -264,78 +322,274 @@ def _training_title_matches(expected: str, result_title: str, result_url: str) -
 def _infer_product_terms(study_md: str, exam_code: str) -> str:
     terms = []
     for c in ["Power Platform", "Dataverse", "Power Apps", "Power Automate", "Power BI",
-              "Power Pages", "Dynamics 365", "Copilot Studio", "Azure"]:
+              "Power Pages", "Dynamics 365", "Copilot Studio", "Microsoft Fabric", "Azure"]:
         if c.lower() in study_md.lower():
             terms.append(c)
     return " ".join(terms[:5]) or exam_code
 
 
-def _title_variants(title: str) -> List[str]:
-    vals = [title]
-    for old, new in [("Power Apps", "Microsoft Power Apps"), ("Power Automate", "Microsoft Power Automate"),
-                     ("Power Pages", "Microsoft Power Pages"), ("Power Platform", "Microsoft Power Platform")]:
-        if old in title and new not in title:
-            vals.append(title.replace(old, new))
-    seen = []
-    return [v for v in vals if v not in seen and not seen.append(v)]
+def _exam_product_tokens(study_md: str) -> set:
+    catalog = [
+        "power platform", "dataverse", "power apps", "power automate", "power bi",
+        "power pages", "dynamics 365", "copilot studio", "microsoft fabric", "azure",
+        "cosmos db", "sql server", "sharepoint", "teams",
+    ]
+    lower = study_md.lower()
+    tokens: set = set()
+    for phrase in catalog:
+        if phrase in lower:
+            tokens.update(_significant_tokens(phrase))
+    return tokens
 
 
-def discover_learning_paths(exam_code: str, study_md: str, search_breadth: int) -> List[str]:
-    """Discover official learning path URLs from exam domain headings via Microsoft Learn Search."""
-    objectives = _parse_skill_objectives(study_md)
-    if not objectives:
-        return []
+def _path_relevance_score(path_title: str, path_url: str, exam_code: str,
+                          product_tokens: set, objective_text: str,
+                          path_roles: Optional[set] = None,
+                          audience_roles: Optional[set] = None) -> int:
+    haystack = f"{path_title} {urlparse(path_url).path.replace('-', ' ')}"
+    path_tokens = _significant_tokens(haystack)
+    obj_tokens = _significant_tokens(objective_text)
+    score = len(path_tokens & obj_tokens)
+
+    if product_tokens and path_tokens & product_tokens:
+        score += 2
+
+    developer_terms = {"developer", "extend", "component", "framework", "plugin", "plug",
+                       "connector", "scripting", "lifecycle", "integrate", "dataverse", "custom"}
+    if path_tokens & developer_terms:
+        score += 1
+
+    if audience_roles and path_roles:
+        if audience_roles & path_roles:
+            score += 3
+        elif "developer" in audience_roles and path_roles & {"app-maker", "business-user"} and "developer" not in path_roles:
+            score -= 3
+
+    if "azure" in path_tokens and "azure" not in product_tokens:
+        score -= 3
+    if re.search(r"\baz-\d", path_title.lower()) and not exam_code.lower().startswith("az-"):
+        score -= 4
+    if re.search(r"\bms-\d", path_title.lower()) and not exam_code.lower().startswith("ms-"):
+        score -= 4
+    if re.search(r"\bdp-\d", path_title.lower()) and not exam_code.lower().startswith("dp-"):
+        score -= 4
+
+    return score
+
+
+def _audience_roles(study_md: str) -> set:
+    roles: set = set()
+    match = re.search(r"### Audience profile\s*\n([\s\S]*?)(?=\n###|\n##|\Z)", study_md)
+    if not match:
+        return roles
+    text = match.group(1).lower()
+    for role in ["developer", "administrator", "analyst", "architect", "consultant",
+                 "engineer", "functional", "admin"]:
+        if role in text:
+            roles.add(role)
+    return roles
+
+
+def _path_roles(path_url: str) -> set:
+    md = fetch_markdown(path_url)
+    return set(re.findall(r"roles=([^&\]\)]+)", md))
+
+
+def _exam_short_name(study_md: str) -> str:
+    h1 = re.search(r"^#\s+(.+)$", study_md, re.M)
+    if not h1:
+        return ""
+    name = re.sub(r"\s*\|\s*Microsoft Learn\s*$", "", h1.group(1).strip())
+    return re.sub(r"^Study guide for Exam [^:]+:\s*", "", name, flags=re.I).strip()
+
+
+def _supplement_discovery_queries(objective_text: str, product_terms: str) -> List[str]:
+    """Add targeted searches for common technical topics mentioned in exam objectives."""
+    lower = objective_text.lower()
+    queries: List[str] = []
+    supplements = [
+        ("component framework", "Power Apps Component Framework"),
+        ("custom connector", "custom connectors"),
+        ("client scripting", "client scripting command bar"),
+        ("lifecycle", "application lifecycle management"),
+        ("plug-in", "Dataverse plug-in"),
+        ("plugin", "Dataverse plugin"),
+        ("custom api", "Dataverse custom API"),
+        ("canvas app", "canvas apps developer"),
+        ("model-driven", "model-driven apps developer"),
+        ("power fx", "Power Fx"),
+    ]
+    for needle, phrase in supplements:
+        if needle in lower:
+            queries.append(f'"{phrase}" {product_terms} learning path')
+    if re.search(r"\bintegrat", lower) and "azure" in lower:
+        queries.append(f'"Integrate with Dataverse and Azure" {product_terms} learning path')
+    return queries
+
+
+def _supplement_path_titles(objective_text: str) -> List[str]:
+    """Return likely Microsoft Learn learning path titles to resolve exactly."""
+    lower = objective_text.lower()
+    titles: List[str] = []
+    if "component framework" in lower:
+        titles.extend([
+            "Build basic code components with the Power Apps Component Framework",
+            "Create components with Power Apps Component Framework",
+        ])
+    if "custom connector" in lower:
+        titles.append("Get started with custom connectors for Microsoft Power Platform")
+    if "client scripting" in lower:
+        titles.append("Extend the user experience with client scripting and command bar customization")
+    if "lifecycle" in lower:
+        titles.append("Basic application lifecycle management in Microsoft Power Platform")
+    if re.search(r"\bintegrat", lower) and "azure" in lower:
+        titles.append("Integrate with Dataverse and Azure")
+    if "plug-in" in lower or "plugin" in lower or "dataverse" in lower:
+        titles.append("Extending Power Platform Dataverse")
+    if "canvas app" in lower:
+        titles.append("Use advance techniques in canvas apps to perform custom updates and optimization")
+    if "model-driven" in lower:
+        titles.append("Extend Power Platform user experience with model-driven apps")
+    if "developer" in lower:
+        titles.append("Introduction to developing with Microsoft Power Platform")
+    return titles
+
+
+def _resolve_exact_path_titles(titles: List[str]) -> Dict[str, str]:
+    candidates: Dict[str, str] = {}
+    for title in titles:
+        for result in _learn_search(f'"{title}"', take=3):
+            url = _canonical(result["url"])
+            if _is_training_path_url(url):
+                candidates[url] = result["title"]
+                break
+        time.sleep(0.05)
+    return candidates
+
+
+def _discovery_queries(exam_code: str, study_md: str, objectives: List[Dict[str, str]],
+                       product_terms: str, exam_name: str) -> List[str]:
+    queries: List[str] = [
+        f"{exam_code} learning path",
+    ]
+    if exam_name:
+        queries.extend([
+            f'"{exam_name}" learning path',
+            f'"{exam_name}" developer learning path',
+        ])
+    if product_terms:
+        primary_label = " ".join(product_terms.split()[0:2])
+        queries.extend([
+            f"{product_terms} developer learning path",
+            f"{primary_label} developer extend learning path",
+            f"{product_terms} learning path",
+        ])
 
     domain_titles: List[str] = []
     for rec in objectives:
         domain = _clean_skill_title(rec["domain"])
         if domain and domain not in domain_titles:
             domain_titles.append(domain)
+            queries.append(f'"{domain}" {product_terms} learning path')
 
-    found_urls: List[str] = []
-    seen = set()
+    task_keywords: set = set()
+    for rec in objectives:
+        task_keywords.update(_significant_tokens(rec["task"] + " " + rec["objective"]))
+    for kw in sorted(task_keywords, key=len, reverse=True)[:8]:
+        queries.append(f"{kw} {product_terms} developer learning path")
 
-    for title in domain_titles:
-        for variant in _title_variants(title):
-            for query in [f'"{variant}" Microsoft Learn training learning path',
-                          f'"{variant}" {exam_code} Microsoft Learn training learning path']:
-                for result in _learn_search(query, take=max(8, search_breadth)):
-                    url = _canonical(result["url"])
-                    if _is_training_path_url(url) and url not in seen and _training_title_matches(variant, result["title"], url):
-                        seen.add(url)
-                        found_urls.append(url)
-                        break
-                else:
-                    continue
-                break
-            else:
-                continue
-            break
-    return found_urls
+    objective_text = " ".join(
+        f"{rec['domain']} {rec['objective']} {rec['task']}" for rec in objectives
+    )
+    queries.extend(_supplement_discovery_queries(objective_text, product_terms))
+
+    return queries
+
+
+def _collect_path_candidates(queries: List[str], search_breadth: int) -> Dict[str, str]:
+    """Search Microsoft Learn and expand result titles into canonical path URLs."""
+    candidates: Dict[str, str] = {}
+    titles_to_expand: set = set()
+    # Microsoft Learn search returns different result sets below take=25.
+    take = min(25, max(25, search_breadth))
+
+    for query in queries:
+        for result in _learn_search(query, take=take):
+            url = _canonical(result["url"])
+            if _is_training_path_url(url):
+                candidates[url] = result["title"]
+            title = result.get("title", "")
+            if " - Training" in title:
+                titles_to_expand.add(title.split(" - Training")[0].strip())
+        time.sleep(0.1)
+
+    for title in sorted(titles_to_expand):
+        for result in _learn_search(f'"{title}"', take=3):
+            url = _canonical(result["url"])
+            if _is_training_path_url(url):
+                candidates[url] = result["title"]
+        time.sleep(0.05)
+
+    return candidates
+
+
+def discover_learning_paths(exam_code: str, study_md: str, search_breadth: int) -> List[str]:
+    """Discover relevant Microsoft Learn learning paths for an exam."""
+    objectives = _parse_skill_objectives(study_md)
+    if not objectives:
+        return []
+
+    objective_text = " ".join(
+        f"{rec['domain']} {rec['objective']} {rec['task']}" for rec in objectives
+    )
+    product_terms = _infer_product_terms(study_md, exam_code)
+    product_tokens = _exam_product_tokens(study_md)
+    exam_name = _exam_short_name(study_md)
+    audience_roles = _audience_roles(study_md)
+
+    queries = _discovery_queries(exam_code, study_md, objectives, product_terms, exam_name)
+    candidates = _collect_path_candidates(queries, search_breadth)
+    candidates.update(_resolve_exact_path_titles(_supplement_path_titles(objective_text)))
+
+    scored: List[Tuple[int, str, set]] = []
+    for url, title in candidates.items():
+        roles = _path_roles(url)
+        score = _path_relevance_score(
+            title, url, exam_code, product_tokens, objective_text, roles, audience_roles
+        )
+        scored.append((score, url, roles))
+
+    if "developer" in audience_roles:
+        developer_paths = [
+            (score, url, roles) for score, url, roles in scored
+            if "developer" in roles and score >= 6
+        ]
+        if len(developer_paths) >= 5:
+            scored = developer_paths
+
+    # Drop clearly off-topic paths when enough exam-aligned content was found.
+    if product_tokens & {"power", "platform", "dataverse", "apps", "automate"}:
+        off_topic_slugs = (
+            "azure-data-fundamentals", "aspnet-core", "microsoft-365",
+            "ms-900", "az-400", "ai-fluency", "develop-language-solutions",
+            "create-azure-app-service", "introduction-cloud-infrastructure",
+        )
+        filtered = [
+            (score, url, roles) for score, url, roles in scored
+            if not (score < 9 and any(token in urlparse(url).path for token in off_topic_slugs))
+        ]
+        if len(filtered) >= 8:
+            scored = filtered
+
+    scored = [(score, url, roles) for score, url, roles in scored if score >= 3]
+    if len(scored) < 4:
+        scored = [(score, url, roles) for score, url, roles in scored if score >= 2]
+
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [url for _, url, _ in scored]
 
 
 # ── Training content download ──────────────────────────────────────────────
-
-def _extract_module_urls_from_path(path_url: str) -> List[Tuple[str, str]]:
-    """Get module URLs from a learning path page's HTML."""
-    html_text = fetch_html(path_url)
-    return [(t, u) for t, u in _extract_html_links(html_text, path_url) if _is_training_module_url(u)]
-
-
-def _extract_unit_urls_from_module(module_url: str) -> List[Tuple[str, str]]:
-    """Get unit URLs from a module page's HTML (relative hrefs like 1-introduction)."""
-    html_text = fetch_html(module_url)
-    unit_links: List[Tuple[str, str]] = []
-    seen = set()
-    for m in re.finditer(r'<a\b[^>]*href=["\'](\d-[^"\']+)["\'][^>]*>(.*?)</a>', html_text, re.I | re.S):
-        href, body = m.group(1), m.group(2)
-        title = _strip_tags(body) or _title_from_slug(href)
-        url = _canonical(urljoin(module_url.rstrip('/') + '/', href))
-        if url not in seen:
-            seen.add(url)
-            unit_links.append((title, url))
-    return unit_links
-
 
 def download_learning_path(path_url: str, failures: List[FailedItem]) -> LearningPathContent:
     """Download a full learning path with all modules and their unit content."""
@@ -351,6 +605,7 @@ def download_learning_path(path_url: str, failures: List[FailedItem]) -> Learnin
     print(f"  Learning path: {title}")
     module_urls = _extract_module_urls_from_path(path_url)
     for mod_title, mod_url in module_urls:
+        mod_title = _module_title_from_markdown(mod_url)
         mod = ModuleContent(title=mod_title, url=mod_url)
         print(f"    Module: {mod_title}")
 
@@ -374,25 +629,16 @@ def download_learning_path(path_url: str, failures: List[FailedItem]) -> Learnin
 
 # ── Output generation ──────────────────────────────────────────────────────
 
-def _build_path_filename(index: int, title: str) -> str:
-    slug = _slugify(title, 60)
-    return f"{index:02d}-{slug}.md"
-
-
-def write_learning_path_file(root: Path, index: int, lp: LearningPathContent) -> str:
-    """Write a single .md file containing all modules and units for a learning path."""
+def _format_learning_path_content(lp: LearningPathContent) -> str:
+    """Render one learning path (modules + units) as Markdown."""
     lines: List[str] = []
 
     lines.append(f"# {lp.title}\n")
     lines.append(f"> Source: [{lp.url}]({lp.url})\n")
 
-    # Add a concise overview from the learning path page (skip the verbose "At a glance" section)
-    # Extract just the description paragraph(s) from the overview
     overview_text = lp.overview_markdown
-    # Find the first paragraph after the H1s that looks like a description (not "At a glance" metadata)
     desc_lines: List[str] = []
     in_description = False
-    past_at_a_glance = False
     for line in overview_text.split("\n"):
         stripped = line.strip()
         if stripped.startswith("## At a glance") or stripped.startswith("## Prerequisites"):
@@ -401,10 +647,8 @@ def write_learning_path_file(root: Path, index: int, lp: LearningPathContent) ->
             continue
         if stripped.startswith("![]"):
             continue
-        if stripped and not past_at_a_glance:
-            # Skip metadata-like lines (single words or very short lines)
-            if len(stripped) > 30:
-                in_description = True
+        if stripped and not in_description and len(stripped) > 30:
+            in_description = True
         if in_description and stripped:
             desc_lines.append(line)
         elif in_description and not stripped:
@@ -420,10 +664,8 @@ def write_learning_path_file(root: Path, index: int, lp: LearningPathContent) ->
 
         for ui, unit in enumerate(mod.units, start=1):
             lines.append(f"\n### {ui}. {unit.title}\n")
-            # Strip the H1 from unit content (it duplicates our ### heading)
             unit_text = unit.markdown
             unit_text = re.sub(r"^#\s+.+\n", "", unit_text, count=1)
-            # Remove "Completed" / duration artifacts at the top
             unit_text = re.sub(r"^Completed\s*\n", "", unit_text)
             unit_text = re.sub(r"^\-\s+\d+\s+min(?:utes)?\s*\n", "", unit_text)
             lines.append(unit_text.rstrip("\n") + "\n")
@@ -433,9 +675,21 @@ def write_learning_path_file(root: Path, index: int, lp: LearningPathContent) ->
         if mi < len(lp.modules):
             lines.append("\n---\n")
 
-    filename = _build_path_filename(index, lp.title)
-    (root / filename).write_text("\n".join(lines), encoding="utf-8")
-    return filename
+    return "\n".join(lines)
+
+
+def write_content_file(root: Path, exam_code: str, learning_paths: List[LearningPathContent]) -> None:
+    """Write all learning path lesson content into a single CONTENT.md."""
+    lines: List[str] = []
+    lines.append(f"# {exam_code} — Microsoft Learn training content\n")
+    lines.append("All official learning paths, modules, and units for this exam.\n")
+
+    for idx, lp in enumerate(learning_paths, start=1):
+        if idx > 1:
+            lines.append("\n\n---\n\n")
+        lines.append(_format_learning_path_content(lp))
+
+    (root / "CONTENT.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 def _parse_exam_metadata(study_md: str) -> Dict[str, str]:
@@ -526,24 +780,20 @@ def _fetch_cert_metadata(exam_slug: str) -> Dict[str, str]:
 
 
 def write_summary(root: Path, exam_code: str, study_md: str, objectives: List[Dict[str, str]],
-                  path_files: List[Tuple[str, LearningPathContent]],
+                  learning_paths: List[LearningPathContent],
                   failures: List[FailedItem]) -> None:
-    """Write SUMMARY.md with exam overview, objectives, and links to learning path files."""
+    """Write a compact SUMMARY.md with exam metadata and section overview."""
     lines: List[str] = []
 
     study_meta = _parse_exam_metadata(study_md)
     cert_meta = _fetch_cert_metadata(exam_code.lower())
-    # Merge: cert page values fill in gaps not already in study_meta
-    merged = {**study_meta, **cert_meta}  # cert_meta wins on overlap (e.g. duration from cert page)
+    merged = {**study_meta, **cert_meta}
     skill_glance: Dict[str, str] = merged.get("skill_glance", {})  # type: ignore[assignment]
 
-    # ── Header with exam name ──────────────────────────────────────────
     cert_name = merged.get("name", f"Exam {exam_code}")
     lines.append(f"# {cert_name}\n")
 
-    # ── Exam details table ─────────────────────────────────────────────
-    details: List[Tuple[str, str]] = []
-    details.append(("Exam code", exam_code))
+    details: List[Tuple[str, str]] = [("Exam code", exam_code)]
     if "duration_minutes" in merged:
         details.append(("Duration", f"{merged['duration_minutes']} minutes"))
     if "pass_score" in merged:
@@ -552,35 +802,24 @@ def write_summary(root: Path, exam_code: str, study_md: str, objectives: List[Di
         details.append(("Proctored", "Yes"))
     if merged.get("level"):
         details.append(("Level", merged["level"]))
-    if merged.get("price"):
-        details.append(("Price", merged["price"]))
     if merged.get("languages"):
         details.append(("Languages", merged["languages"]))
 
-    if details:
-        lines.append("## Exam details\n")
-        lines.append("| | |")
-        lines.append("|---|---|")
-        for label, value in details:
-            lines.append(f"| **{label}** | {value} |")
-        lines.append("")
+    lines.append("## Exam details\n")
+    lines.append("| | |")
+    lines.append("|---|---|")
+    for label, value in details:
+        lines.append(f"| **{label}** | {value} |")
+    lines.append("")
 
-    # ── Useful links ────────────────────────────────────────────────────
     useful_links: Dict[str, str] = merged.get("useful_links", {})  # type: ignore[assignment]
     if useful_links:
-        lines.append("\n## Useful links\n")
+        lines.append("## Useful links\n")
         for label, url in useful_links.items():
             lines.append(f"- [{label}]({url})")
         lines.append("")
 
-    # ── Audience profile ───────────────────────────────────────────────
-    audience_match = re.search(r"### Audience profile\s*\n([\s\S]*?)(?=\n###|\n##|\Z)", study_md)
-    if audience_match:
-        lines.append("\n## Audience profile\n")
-        lines.append(audience_match.group(1).strip() + "\n")
-
-    # ── Skills at a glance ─────────────────────────────────────────────
-    lines.append("\n## Skills measured\n")
+    lines.append("## Skills measured\n")
     seen_domains: List[str] = []
     domain_percentages: Dict[str, str] = {}
     for rec in objectives:
@@ -598,39 +837,21 @@ def write_summary(root: Path, exam_code: str, study_md: str, objectives: List[Di
         lines.append(f"{i}. **{domain}**{pct_str}")
     lines.append("")
 
-    # ── Learning paths ──────────────────────────────────────────────────
-    lines.append("\n## Learning paths\n")
-    lines.append("| # | Learning path | Modules | Units | Status | File |")
-    lines.append("|---|---|---|---|---|---|")
-    for idx, (filename, lp) in enumerate(path_files, start=1):
+    lines.append("## Learning paths\n")
+    lines.append("Full lesson text is in [CONTENT.md](CONTENT.md).\n")
+    lines.append("| # | Learning path | Modules | Units | Status |")
+    lines.append("|---|---|---|---|---|")
+    for idx, lp in enumerate(learning_paths, start=1):
         n_modules = len(lp.modules)
         n_units = sum(len(m.units) for m in lp.modules)
         has_failure = any(f"LP: {lp.title}" in f.context for f in failures)
         status = "⚠ partial" if has_failure else "✓"
-        lines.append(f"| {idx} | {lp.title} | {n_modules} | {n_units} | {status} | [{filename}]({filename}) |")
+        lines.append(f"| {idx} | {lp.title} | {n_modules} | {n_units} | {status} |")
     lines.append("")
 
-    # ── Detailed objectives ─────────────────────────────────────────────
-    lines.append("\n## Detailed objectives\n")
-    current_domain = ""
-    current_objective = ""
-    for rec in objectives:
-        domain = _clean_skill_title(rec["domain"])
-        objective = _clean_skill_title(rec["objective"])
-        if domain != current_domain:
-            lines.append(f"\n### {domain}\n")
-            current_domain = domain
-            current_objective = ""
-        if objective != current_objective:
-            lines.append(f"\n#### {objective}\n")
-            current_objective = objective
-        lines.append(f"- {rec['task']}")
-    lines.append("")
-
-    # ── Failures section ────────────────────────────────────────────────
     if failures:
-        lines.append("\n## ⚠ Failed downloads\n")
-        lines.append(f"{len(failures)} item(s) failed to download. Run `retry-failed.sh` to re-download them.\n")
+        lines.append("## ⚠ Failed downloads\n")
+        lines.append(f"{len(failures)} item(s) failed. Run `retry-failed.sh` to re-download.\n")
         for f in failures:
             lines.append(f"- {f.context} — {f.error}")
             lines.append(f"  `{f.url}`")
@@ -661,7 +882,7 @@ def _write_retry_script(root: Path, exam_slug: str, learning_paths: List[Learnin
     lines.append('  esac')
     lines.append('done')
     lines.append("")
-    lines.append('PYTHON_SCRIPT="$HOME/.pi/agent/skills/microsoft-exam-docs/scripts/download_exam_docs.py"')
+    lines.append('PYTHON_SCRIPT="$HOME/.agents/skills/microsoft-exam-docs/scripts/download_exam_docs.py"')
     lines.append("")
     lines.append(f'EXAM_CODE="{exam_slug.upper()}"')
     lines.append('echo "Retrying failed downloads for $EXAM_CODE..."')
@@ -728,14 +949,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             failures.append(FailedItem(url=path_url, context=f"Learning path: {path_url}", error=str(e)))
 
     # ── Step 4: Write output files ──────────────────────────────────────
-    path_files: List[Tuple[str, LearningPathContent]] = []
-    for idx, lp in enumerate(learning_paths, start=1):
-        filename = write_learning_path_file(out_root, idx, lp)
-        path_files.append((filename, lp))
-        print(f"Wrote {filename} ({len(lp.modules)} modules, {sum(len(m.units) for m in lp.modules)} units)")
+    write_content_file(out_root, exam_code, learning_paths)
+    content_size = (out_root / "CONTENT.md").stat().st_size
+    print(f"Wrote CONTENT.md ({content_size:,} bytes, {len(learning_paths)} learning paths)")
 
     objectives = _parse_skill_objectives(study_md)
-    write_summary(out_root, exam_code, study_md, objectives, path_files, failures)
+    write_summary(out_root, exam_code, study_md, objectives, learning_paths, failures)
 
     # ── Step 5: Write retry script for failures ─────────────────────────
     total_failed = len(failures)
@@ -752,7 +971,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"  ⚠ {total_failed} download(s) failed — run retry-failed.sh to re-download")
     else:
         print(f"  ✓ All downloads successful")
-    print(f"  Files: SUMMARY.md + {len(path_files)} learning-path .md files")
+    print(f"  Files: SUMMARY.md + CONTENT.md")
     print(f"{'='*60}")
 
     return 0
