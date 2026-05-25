@@ -1,9 +1,0 @@
-{
-  "name": "pi-extension-exam-study",
-  "version": "1.0.0",
-  "description": "Interactive study assistant for Markdown exam material. Ask questions from your notes or generate Microsoft-style quizzes with a full terminal UI.",
-  "keywords": ["pi-package", "pi-extension"],
-  "pi": {
-    "extensions": ["index.ts"]
-  }
-}
