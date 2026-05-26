@@ -138,6 +138,7 @@ Generate questions distributed across the training content. If the user specifie
 
 **Quality guidelines:**
 - Questions should test **understanding and application**, not just recall of exact phrases.
+- **Never reference images, diagrams, figures, or visual examples.** Questions and answers must be purely based on text content. Do not include phrasing such as "as shown in the image", "refer to the diagram", or "based on the figure above". If a section relies heavily on images and lacks sufficient explanatory text, skip it and redistribute the questions to sections with adequate text content.
 - Include a mix of question types:
   - Conceptual understanding ("What is the purpose of…?")
   - Feature identification ("Which feature allows you to…?")
