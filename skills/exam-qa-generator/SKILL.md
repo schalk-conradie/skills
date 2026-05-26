@@ -7,6 +7,22 @@ description: Generates multiple-choice and multiple-select question and answer b
 
 Generates a JSON question-and-answer bank from Microsoft Learn training material (Markdown files produced by the `microsoft-exam-docs` skill).
 
+## Artifact policy
+
+Create exactly one file: the final question-and-answer JSON file named `{exam-code}.json` in the training directory.
+
+Do not create helper scripts, scratch files, intermediate JSON/Markdown files, manifests, logs, caches, or generated tooling. Do not scaffold a generator. If validation or analysis needs code, use inline shell commands only (for example `node -e`, `python -c`, `jq`, `rg`, `awk`) and do not write those commands to disk.
+
+## Efficiency guidelines
+
+- Build a quick content outline from headings before generating questions. Use it to identify learning paths, modules, units, and sections with enough body content.
+- Allocate question counts per section before generation starts. This avoids over-generating and then discarding large batches.
+- Generate in section-sized batches instead of repeatedly prompting over the entire `CONTENT.md`.
+- When using subagents, pass only the relevant source section(s), the allocated question count, and the schema rules. Do not pass the entire exam content to every subagent unless the file is small.
+- Prefer exact JSON arrays from generation batches so the coordinator can merge them directly with minimal rewriting.
+- Do one final global pass for duplicates, topic consistency, answer/option integrity, IDs, and `questionCount`.
+- Use inline validation commands where useful, but keep all intermediate state in memory and write only the final JSON file.
+
 ## Output format
 
 A single JSON file structured as:
@@ -79,7 +95,7 @@ Follow these steps **in order**. Do not skip any step.
 
 The user provides a path to a directory containing:
 - `SUMMARY.md` — exam metadata (extract `exam` object from here)
-- One or more numbered `.md` files (e.g. `01-*.md`, `02-*.md`, …) — the actual training content
+- `CONTENT.md` — all training lesson content for the exam
 
 If no path is given, use the current working directory.
 
@@ -94,9 +110,9 @@ Read `SUMMARY.md`. Extract **only** the exam info fields for the `exam` object i
 
 Ignore all other content in SUMMARY.md (skills measured, objectives, audience profile, links, etc.).
 
-### Step 3 — Read all training content files
+### Step 3 — Read training content
 
-Read **every** `.md` file in the directory **except** `SUMMARY.md`, in numerical order. These files contain the full course material. Read each file completely — do not truncate or skip sections.
+Read `CONTENT.md` completely — it contains all learning paths, modules, and units for the exam. Do not truncate or skip sections.
 
 For very large files, read in chunks using offset/limit until you have consumed the entire file.
 
@@ -104,9 +120,19 @@ For very large files, read in chunks using offset/limit until you have consumed 
 
 Generate questions distributed across the training content. If the user specifies a number, generate exactly that many questions. If no number is given, generate **50** questions. Follow these guidelines:
 
+**Parallel generation when available:**
+- When subagent tools are available, use them by default for multi-module content, large `CONTENT.md` files, or requested question counts of 30 or more. Skip subagents only when the source material is small enough that delegation overhead would dominate.
+- Spawn a small number of independent workers, usually 2-6, based on coherent content partitions. Do not spawn one worker per question.
+- The main agent is the coordinator. It remains responsible for reading `SUMMARY.md`, determining the requested question count, computing the section/module allocation, merging output, validating the final JSON, and writing the only output file.
+- Split work by learning path, module, or coherent content ranges. Give each subagent only the source sections it needs, the exact number of questions to generate, the required single/multiple mix, and the schema rules.
+- Require each subagent to return only an in-memory JSON array of question objects without top-level `exam`, `generatedAt`, `questionCount`, or file-writing instructions.
+- Do not let subagents create files, scripts, or tool scaffolding. They generate question objects only.
+- After subagents return, the coordinator deduplicates, normalizes topic labels, assigns final sequential IDs, verifies answer/option consistency, and writes `{exam-code}.json`.
+- If subagents are unavailable, continue in a single agent using the same section allocation and validation rules.
+
 **Distribution:**
-- Spread questions proportionally across all training files based on their content depth.
-- If a file has very little content (e.g., only headings with no body), skip it and redistribute to files with real content.
+- Spread questions proportionally across learning paths and modules based on content depth.
+- If a section has very little content (e.g., only headings with no body), skip it and redistribute to sections with real content.
 - Each distinct module/section should have at least a few questions.
 - Question type mix: aim for roughly **70% `single`** and **30% `multiple`**, but adjust based on the material. If the content naturally lends itself to many multi-select scenarios, go up to 40% `multiple`.
 
@@ -146,6 +172,8 @@ Generate questions distributed across the training content. If the user specifie
 ### Step 5 — Write the output file
 
 Write the complete JSON to a file named `{exam-code}.json` (e.g., `pl-400.json`, `pl-900.json`) in the training directory.
+
+This is the only file that may be created or modified. Do not leave behind generated scripts, temporary files, partial question banks, analysis notes, or other artifacts.
 
 Validate the JSON:
 - `questionCount` must equal `questions.length`

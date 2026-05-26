@@ -28,9 +28,11 @@ The helper script:
 4. Discovers official Microsoft Learn learning paths for each exam domain via Microsoft Learn Search.
 5. Downloads every module and unit under each learning path — full lesson text, not just index pages.
 6. Strips YAML frontmatter and metadata so files contain clean, readable content.
-7. Writes exactly two Markdown files:
+7. Downloads referenced Learn image assets and rewrites Markdown image links to local files under `media/`.
+8. Writes the offline study material:
    - `SUMMARY.md` — compact exam overview: details, useful links, skills measured (domain names + weights), learning path index with download status.
    - `CONTENT.md` — all learning paths, modules, and units concatenated with headings and source links.
+   - `media/` — downloaded images referenced from `CONTENT.md`, scoped by module slug to avoid filename collisions.
    - `retry-failed.sh` (only if downloads failed) — re-runs the download to recover failed items.
 
 The script uses only Python standard library.
@@ -62,12 +64,23 @@ python3 ~/.agents/skills/microsoft-exam-docs/scripts/download_exam_docs.py PL-40
   https://learn.microsoft.com/en-us/training/paths/power-platform-developer
 ```
 
+Media download controls:
+
+```bash
+# Print one line per media asset by default; lower timeout for slow networks
+python3 ~/.agents/skills/microsoft-exam-docs/scripts/download_exam_docs.py PL-200 --asset-timeout 10 --asset-retries 1
+
+# Text-only fallback: skip image downloads and leave original relative image links as-is
+python3 ~/.agents/skills/microsoft-exam-docs/scripts/download_exam_docs.py PL-200 --no-media
+```
+
 ## Output structure
 
 ```
 microsoft-learn-pl-400/
 ├── SUMMARY.md       # Exam metadata + skills measured + learning path index
 ├── CONTENT.md       # All learning path lesson content
+├── media/           # Referenced images, grouped by module
 └── retry-failed.sh  # Only if downloads failed
 ```
 
@@ -99,6 +112,8 @@ microsoft-learn-pl-400/
 ### 2. Analyze solution components
 [full lesson text]
 ```
+
+Images in `CONTENT.md` point to local files such as `media/get-started-power-apps-component-framework/existing-screen.png`.
 
 ## Retry on failure
 
@@ -132,7 +147,9 @@ python3 ~/.agents/skills/microsoft-exam-docs/scripts/download_exam_docs.py PL-40
 - Microsoft Learn rendered Markdown for module overview pages only contains a unit index, not lesson content. The script expands each module into its individual units.
 - YAML frontmatter is stripped from all downloaded content.
 - Exam metadata is fetched from both the study guide and certification pages; the certification page takes priority on conflicts.
-- Some metadata points to private `*-pr` GitHub repos. Content is downloaded from Microsoft Learn rendered Markdown endpoints instead.
+- Some metadata points to private `*-pr` GitHub repos. Content and images are downloaded from Microsoft Learn rendered endpoints instead.
 - The script can be rerun safely; it recreates/updates files under the output directory.
+- Media downloads are resumable. Existing non-empty files under `media/` are reused on rerun.
+- During the media phase, the script logs each asset before requesting it so slow or stuck Microsoft Learn image requests are visible.
 - Unit links on newer modules use slug-based URLs (e.g. `/modules/foo/introduction`) rather than numbered paths (`/1-introduction`). Both formats are supported.
 - Learning path discovery uses Microsoft Learn Search with exact-title backfill and role-aware filtering. For developer exams, paths tagged with the Developer role are preferred.

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Download Microsoft Learn study material for a Microsoft certification exam code.
 
-Produces a lean two-file output:
+Produces an offline Markdown output:
   - SUMMARY.md  — exam metadata, skills measured, learning path index
   - CONTENT.md  — all learning path modules and unit lesson text
+  - media/      — images referenced by CONTENT.md
 
 Example:
     python3 download_exam_docs.py AB-620
@@ -12,8 +13,10 @@ Example:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import json
+import posixpath
 import re
 import sys
 import time
@@ -21,11 +24,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
+from urllib.parse import parse_qsl, unquote, urlencode, urljoin, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 LEARN = "https://learn.microsoft.com"
 UA = "Mozilla/5.0 (compatible; pi-microsoft-exam-docs-skill/1.0)"
+IMAGE_EXTENSIONS = {".apng", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"}
 
 
 # ── Data structures ──────────────────────────────────────────────────────────
@@ -93,6 +97,11 @@ def _add_accept(url: str, value: str) -> str:
 
 
 def _canonical(url: str) -> str:
+    p = urlparse(url)
+    return urlunparse((p.scheme, p.netloc, p.path, p.params, p.query, ""))
+
+
+def _without_fragment(url: str) -> str:
     p = urlparse(url)
     return urlunparse((p.scheme, p.netloc, p.path, p.params, p.query, ""))
 
@@ -230,6 +239,199 @@ def _extract_html_links(html_text: str, base_url: str) -> List[Tuple[str, str]]:
         title = _strip_tags(body) or _title_from_slug(urlparse(url).path)
         links.append((title, key))
     return links
+
+
+# ── Media helpers ──────────────────────────────────────────────────────────
+
+def _is_probable_image_url(url: str) -> bool:
+    path = urlparse(url).path.lower()
+    return posixpath.splitext(path)[1] in IMAGE_EXTENSIONS
+
+
+def _safe_path_segment(value: str, fallback: str) -> str:
+    value = unquote(value or "")
+    value = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip(".-")
+    return value or fallback
+
+
+def _asset_scope_from_base_url(base_url: str) -> str:
+    path = urlparse(base_url).path
+    module_match = re.search(r"/training/modules/([^/]+)", path, re.I)
+    if module_match:
+        return _safe_path_segment(module_match.group(1), "module")
+
+    slug = path.strip("/").split("/")[-1]
+    return _safe_path_segment(slug, "shared")
+
+
+def _split_markdown_destination(raw: str) -> Optional[Tuple[str, str, bool]]:
+    stripped = raw.strip()
+    if not stripped:
+        return None
+    if stripped.startswith("<"):
+        end = stripped.find(">")
+        if end == -1:
+            return None
+        target = stripped[1:end].strip()
+        suffix = stripped[end + 1:].strip()
+        return target, suffix, True
+
+    parts = stripped.split(maxsplit=1)
+    target = parts[0].strip()
+    suffix = parts[1].strip() if len(parts) > 1 else ""
+    return target, suffix, False
+
+
+def _format_markdown_destination(target: str, suffix: str, bracketed: bool) -> str:
+    if bracketed:
+        dest = f"<{target}>"
+    else:
+        dest = target
+    if suffix:
+        dest = f"{dest} {suffix}"
+    return dest
+
+
+class AssetDownloader:
+    """Download Microsoft Learn images and rewrite Markdown links to local files."""
+
+    def __init__(self, root: Path, failures: List[FailedItem],
+                 asset_timeout: int = 20, asset_retries: int = 1,
+                 skip_media: bool = False, log_assets: bool = True) -> None:
+        self.root = root
+        self.failures = failures
+        self.asset_timeout = max(1, asset_timeout)
+        self.asset_retries = max(0, asset_retries)
+        self.skip_media = skip_media
+        self.log_assets = log_assets
+        self.cache: Dict[str, str] = {}
+        self.failed_urls: set = set()
+        self.path_sources: Dict[str, str] = {}
+        self.seen_count = 0
+        self.downloaded_count = 0
+        self.reused_count = 0
+        self.failed_count = 0
+
+    def rewrite_markdown_assets(self, markdown: str, base_url: str, context: str) -> str:
+        def repl_markdown(match: re.Match) -> str:
+            parsed = _split_markdown_destination(match.group(1))
+            if not parsed:
+                return match.group(0)
+            target, suffix, bracketed = parsed
+            local = self.localize(target, base_url, context)
+            if not local:
+                return match.group(0)
+            return f"]({_format_markdown_destination(local, suffix, bracketed)})"
+
+        def repl_html(match: re.Match) -> str:
+            local = self.localize(match.group(2), base_url, context)
+            if not local:
+                return match.group(0)
+            return f"{match.group(1)}{local}{match.group(3)}"
+
+        markdown = re.sub(r"\]\(([^)\n]+)\)", repl_markdown, markdown)
+        markdown = re.sub(r"(<img\b[^>]*\bsrc=[\"'])([^\"']+)([\"'])",
+                          repl_html, markdown, flags=re.I)
+        return markdown
+
+    def localize(self, target: str, base_url: str, context: str) -> Optional[str]:
+        asset_url = self._resolve_asset_url(target, base_url)
+        if not asset_url or self.skip_media:
+            return None
+        if asset_url in self.cache:
+            return self.cache[asset_url]
+        if asset_url in self.failed_urls:
+            return None
+
+        rel_path = self._allocate_local_path(asset_url, base_url)
+        dest = self.root / rel_path
+        local = rel_path.as_posix()
+        if dest.exists() and dest.stat().st_size > 0:
+            self.cache[asset_url] = local
+            self.reused_count += 1
+            if self.log_assets:
+                print(f"      Media reused: {local}", flush=True)
+            return local
+
+        self.seen_count += 1
+        attempts = self.asset_retries + 1
+        last_error: Optional[Exception] = None
+        for attempt in range(1, attempts + 1):
+            if self.log_assets:
+                retry_note = f" attempt {attempt}/{attempts}" if attempts > 1 else ""
+                print(f"      Media {self.seen_count}:{retry_note} {local}", flush=True)
+                print(f"        {asset_url}", flush=True)
+            try:
+                _status, final_url, data, _ctype = fetch(asset_url, accept="image/*", timeout=self.asset_timeout)
+                if not data:
+                    raise ValueError("empty response")
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                tmp_dest = dest.with_name(dest.name + ".tmp")
+                tmp_dest.write_bytes(data)
+                tmp_dest.replace(dest)
+                self.cache[asset_url] = local
+                if final_url and _without_fragment(final_url) != asset_url:
+                    self.cache[_without_fragment(final_url)] = local
+                self.downloaded_count += 1
+                return local
+            except Exception as e:
+                last_error = e
+                if attempt < attempts:
+                    print(f"        retrying after error: {e}", flush=True)
+                    time.sleep(min(2 * attempt, 5))
+
+        self.failed_count += 1
+        self.failed_urls.add(asset_url)
+        error = str(last_error) if last_error else "unknown error"
+        print(f"      Media FAILED: {local} — {error}", flush=True)
+        self.failures.append(FailedItem(
+            url=asset_url,
+            context=f"{context} > Asset: {target}",
+            error=error,
+        ))
+        return None
+
+    def _resolve_asset_url(self, target: str, base_url: str) -> Optional[str]:
+        target = html.unescape(target.strip())
+        if not target or target.startswith("#"):
+            return None
+        lower = target.lower()
+        if lower.startswith(("data:", "javascript:", "mailto:", "tel:")):
+            return None
+        if target.startswith("//"):
+            target = "https:" + target
+
+        target = _without_fragment(target)
+        parsed = urlparse(target)
+        if parsed.scheme and parsed.scheme not in ("http", "https"):
+            return None
+        if parsed.scheme:
+            asset_url = target
+        else:
+            asset_url = urljoin(base_url.rstrip("/") + "/", target)
+
+        if not _is_probable_image_url(asset_url):
+            return None
+        return _without_fragment(asset_url)
+
+    def _allocate_local_path(self, asset_url: str, base_url: str) -> Path:
+        scope = _asset_scope_from_base_url(base_url)
+        filename = _safe_path_segment(posixpath.basename(urlparse(asset_url).path), "image")
+        if posixpath.splitext(filename)[1].lower() not in IMAGE_EXTENSIONS:
+            filename = f"{filename}.img"
+
+        rel_path = Path("media") / scope / filename
+        rel_key = rel_path.as_posix()
+        existing_source = self.path_sources.get(rel_key)
+        if existing_source and existing_source != asset_url:
+            digest = hashlib.sha1(asset_url.encode("utf-8")).hexdigest()[:8]
+            path_obj = Path(filename)
+            filename = f"{path_obj.stem}-{digest}{path_obj.suffix}"
+            rel_path = Path("media") / scope / filename
+            rel_key = rel_path.as_posix()
+
+        self.path_sources[rel_key] = asset_url
+        return rel_path
 
 
 # ── Microsoft Learn Search API ─────────────────────────────────────────────
@@ -629,7 +831,8 @@ def download_learning_path(path_url: str, failures: List[FailedItem]) -> Learnin
 
 # ── Output generation ──────────────────────────────────────────────────────
 
-def _format_learning_path_content(lp: LearningPathContent) -> str:
+def _format_learning_path_content(lp: LearningPathContent,
+                                  asset_downloader: Optional[AssetDownloader] = None) -> str:
     """Render one learning path (modules + units) as Markdown."""
     lines: List[str] = []
 
@@ -654,7 +857,12 @@ def _format_learning_path_content(lp: LearningPathContent) -> str:
         elif in_description and not stripped:
             break
     if desc_lines:
-        lines.append("\n".join(desc_lines) + "\n")
+        desc_text = "\n".join(desc_lines)
+        if asset_downloader:
+            desc_text = asset_downloader.rewrite_markdown_assets(
+                desc_text, lp.url, f"LP: {lp.title} > Overview"
+            )
+        lines.append(desc_text + "\n")
 
     lines.append("\n---\n")
 
@@ -668,6 +876,9 @@ def _format_learning_path_content(lp: LearningPathContent) -> str:
             unit_text = re.sub(r"^#\s+.+\n", "", unit_text, count=1)
             unit_text = re.sub(r"^Completed\s*\n", "", unit_text)
             unit_text = re.sub(r"^\-\s+\d+\s+min(?:utes)?\s*\n", "", unit_text)
+            if asset_downloader:
+                context = f"LP: {lp.title} > Module: {mod.title} > Unit: {unit.title}"
+                unit_text = asset_downloader.rewrite_markdown_assets(unit_text, mod.url, context)
             lines.append(unit_text.rstrip("\n") + "\n")
             if ui < len(mod.units):
                 lines.append("\n---\n")
@@ -678,18 +889,39 @@ def _format_learning_path_content(lp: LearningPathContent) -> str:
     return "\n".join(lines)
 
 
-def write_content_file(root: Path, exam_code: str, learning_paths: List[LearningPathContent]) -> None:
+def write_content_file(root: Path, exam_code: str, learning_paths: List[LearningPathContent],
+                       failures: List[FailedItem], asset_timeout: int = 20,
+                       asset_retries: int = 1, skip_media: bool = False,
+                       log_assets: bool = True) -> AssetDownloader:
     """Write all learning path lesson content into a single CONTENT.md."""
     lines: List[str] = []
+    asset_downloader = AssetDownloader(
+        root,
+        failures,
+        asset_timeout=asset_timeout,
+        asset_retries=asset_retries,
+        skip_media=skip_media,
+        log_assets=log_assets,
+    )
     lines.append(f"# {exam_code} — Microsoft Learn training content\n")
     lines.append("All official learning paths, modules, and units for this exam.\n")
+
+    if skip_media:
+        print("Writing CONTENT.md without downloading media assets", flush=True)
+    else:
+        print(
+            f"Writing CONTENT.md and downloading media assets "
+            f"(timeout {asset_downloader.asset_timeout}s, retries {asset_downloader.asset_retries})",
+            flush=True,
+        )
 
     for idx, lp in enumerate(learning_paths, start=1):
         if idx > 1:
             lines.append("\n\n---\n\n")
-        lines.append(_format_learning_path_content(lp))
+        lines.append(_format_learning_path_content(lp, asset_downloader))
 
     (root / "CONTENT.md").write_text("\n".join(lines), encoding="utf-8")
+    return asset_downloader
 
 
 def _parse_exam_metadata(study_md: str) -> Dict[str, str]:
@@ -903,6 +1135,14 @@ def build_parser() -> argparse.ArgumentParser():
                    help="Max search results to inspect per domain when discovering learning paths. Default: 8")
     p.add_argument("--paths", nargs="*", default=None,
                    help="One or more learning path URLs to download (skips auto-discovery)")
+    p.add_argument("--asset-timeout", type=int, default=20,
+                   help="Seconds to wait for each image asset request. Default: 20")
+    p.add_argument("--asset-retries", type=int, default=1,
+                   help="Retries per image asset before recording a failure. Default: 1")
+    p.add_argument("--no-media", action="store_true",
+                   help="Skip downloading image assets; CONTENT.md keeps original relative image links.")
+    p.add_argument("--quiet-media", action="store_true",
+                   help="Do not print one line per media asset while CONTENT.md is written.")
     return p
 
 
@@ -933,6 +1173,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"Discovering official learning paths for {exam_code}...")
         path_urls = discover_learning_paths(exam_code, study_md, args.training_search)
         print(f"Found {len(path_urls)} learning path(s)")
+        if len(path_urls) > 15:
+            print(
+                "  Note: this is a large download. Use --paths for a focused run, "
+                "--no-media for text-only output, or lower --asset-timeout if image requests are slow.",
+                flush=True,
+            )
 
     # ── Step 3: Download all content ────────────────────────────────────
     failures: List[FailedItem] = []
@@ -949,9 +1195,25 @@ def main(argv: Optional[List[str]] = None) -> int:
             failures.append(FailedItem(url=path_url, context=f"Learning path: {path_url}", error=str(e)))
 
     # ── Step 4: Write output files ──────────────────────────────────────
-    write_content_file(out_root, exam_code, learning_paths)
+    asset_downloader = write_content_file(
+        out_root,
+        exam_code,
+        learning_paths,
+        failures,
+        asset_timeout=args.asset_timeout,
+        asset_retries=args.asset_retries,
+        skip_media=args.no_media,
+        log_assets=not args.quiet_media,
+    )
     content_size = (out_root / "CONTENT.md").stat().st_size
     print(f"Wrote CONTENT.md ({content_size:,} bytes, {len(learning_paths)} learning paths)")
+    if args.no_media:
+        print("Skipped media/ download")
+    else:
+        print(
+            f"Wrote media/ ({asset_downloader.downloaded_count:,} downloaded, "
+            f"{asset_downloader.reused_count:,} reused, {asset_downloader.failed_count:,} failed)"
+        )
 
     objectives = _parse_skill_objectives(study_md)
     write_summary(out_root, exam_code, study_md, objectives, learning_paths, failures)
@@ -971,7 +1233,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"  ⚠ {total_failed} download(s) failed — run retry-failed.sh to re-download")
     else:
         print(f"  ✓ All downloads successful")
-    print(f"  Files: SUMMARY.md + CONTENT.md")
+    files_note = "SUMMARY.md + CONTENT.md"
+    if not args.no_media and (asset_downloader.downloaded_count or asset_downloader.reused_count):
+        files_note += " + media/"
+    print(f"  Files: {files_note}")
     print(f"{'='*60}")
 
     return 0
