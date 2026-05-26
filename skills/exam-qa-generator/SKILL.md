@@ -50,7 +50,8 @@ A single JSON file structured as:
         "Quick replies",
         "Adaptive Cards",
         "Topic branching"
-      ]
+      ],
+      "WrongAnswerHint": "Review the module **Configure message formatting in agent topics** in the *Build chatbots with Copilot Studio* learning path."
     },
     {
       "id": 2,
@@ -67,7 +68,8 @@ A single JSON file structured as:
         "Business rules",
         "Workflow processes",
         "Plugin assemblies"
-      ]
+      ],
+      "WrongAnswerHint": "Review the module **Manage environment variables** in the *Implement Power Platform solutions* learning path."
     }
   ]
 }
@@ -86,6 +88,7 @@ A single JSON file structured as:
 | `questions[].question` | Clear, specific question. No tricks — test real knowledge. |
 | `questions[].answers` | Array of correct option strings. For `single` type, exactly **1** element. For `multiple` type, **1–5** elements. Every element must appear verbatim in the `options` array. |
 | `questions[].options` | Array of all plausible options. For `single` type, exactly **4** options. For `multiple` type, exactly **5** options. Distractors must be realistic and relate to the domain. |
+| `questions[].WrongAnswerHint` | A short, actionable pointer to the relevant learning-path or module title in `CONTENT.md` the question came from, so a user can quickly re-study the material when they answer incorrectly. Must not contain the correct answer itself. Example: "Review the module **Configure message formatting in agent topics** in the *Build chatbots with Copilot Studio* learning path." |
 
 ## Generation process
 
