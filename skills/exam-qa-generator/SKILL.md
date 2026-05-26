@@ -51,7 +51,7 @@ A single JSON file structured as:
         "Adaptive Cards",
         "Topic branching"
       ],
-      "WrongAnswerHint": "Review the module **Configure message formatting in agent topics** in the *Build chatbots with Copilot Studio* learning path."
+      "WrongAnswerHint": "Copilot Studio uses message variations to rotate the wording shown to users, improving conversational variety without changing the underlying logic. See the module **Configure message formatting in agent topics** in the *Build chatbots with Copilot Studio* learning path."
     },
     {
       "id": 2,
@@ -69,7 +69,7 @@ A single JSON file structured as:
         "Workflow processes",
         "Plugin assemblies"
       ],
-      "WrongAnswerHint": "Review the module **Manage environment variables** in the *Implement Power Platform solutions* learning path."
+      "WrongAnswerHint": "Environment variables let you store values that differ across environments (test, production, etc.) and are designed to be packaged in solutions. Custom connectors define API definitions and can also hold environment-specific endpoints. Other listed items like business rules and workflows are runtime artifacts, not configuration values. See the module **Identify environment variables** in the *Implement Power Platform solutions* learning path."
     }
   ]
 }
@@ -88,7 +88,7 @@ A single JSON file structured as:
 | `questions[].question` | Clear, specific question. No tricks — test real knowledge. |
 | `questions[].answers` | Array of correct option strings. For `single` type, exactly **1** element. For `multiple` type, **1–5** elements. Every element must appear verbatim in the `options` array. |
 | `questions[].options` | Array of all plausible options. For `single` type, exactly **4** options. For `multiple` type, exactly **5** options. Distractors must be realistic and relate to the domain. |
-| `questions[].WrongAnswerHint` | A short, actionable pointer to the relevant learning-path or module title in `CONTENT.md` the question came from, so a user can quickly re-study the material when they answer incorrectly. Must not contain the correct answer itself. Example: "Review the module **Configure message formatting in agent topics** in the *Build chatbots with Copilot Studio* learning path." |
+| `questions[].WrongAnswerHint` | A concise educational explanation that both (a) describes **why** the correct answer(s) is right and (b) points the user to the source module / learning path for further study. Must **not** reveal the letter or text of the correct option itself (the consuming app or UI already shows the answers). Keep it to 1–3 sentences. Example: "Copilot Studio uses message variations to rotate the wording shown to users, which improves conversational variety without changing the underlying logic. See the module **Configure message formatting in agent topics** in the *Build chatbots with Copilot Studio* learning path." |
 
 ## Generation process
 
