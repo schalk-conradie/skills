@@ -5,13 +5,13 @@ description: Generates multiple-choice and multiple-select question and answer b
 
 # Exam Q&A Generator
 
-Generates a JSON question-and-answer bank from Microsoft Learn training material (Markdown files produced by the `microsoft-exam-docs` skill).
+Generates a JSON question-and-answer bank from Microsoft Learn training material (Markdown files produced by the `microsoft-exam-docs` skill. Generally you will look for a CONTENT.md file and a SUMMARY.md file).
 
 ## Artifact policy
 
 Create exactly one file: the final question-and-answer JSON file named `{exam-code}.json` in the training directory.
 
-Do not create helper scripts, scratch files, intermediate JSON/Markdown files, manifests, logs, caches, or generated tooling. Do not scaffold a generator. If validation or analysis needs code, use inline shell commands only (for example `node -e`, `python -c`, `jq`, `rg`, `awk`) and do not write those commands to disk.
+When you are generating the file, make sure to remove any helper scripts that you generated. Where possible and applicable, use Powershell, Bash, jq, fd, rg, node, bun, and python. Preference goes for Node since you can write the validation rules in as part of the generation and verify the output.
 
 ## Efficiency guidelines
 
@@ -141,7 +141,7 @@ Generate questions distributed across the training content. If the user specifie
 
 **Quality guidelines:**
 - Questions should test **understanding and application**, not just recall of exact phrases.
-- **Never reference images, diagrams, figures, or visual examples.** Questions and answers must be purely based on text content. Do not include phrasing such as "as shown in the image", "refer to the diagram", or "based on the figure above". If a section relies heavily on images and lacks sufficient explanatory text, skip it and redistribute the questions to sections with adequate text content.
+- **Never reference images, diagrams, figures, or visual examples. Also never reference other pages or markdown links.** Questions and answers must be purely based on text content. Do not include phrasing such as "as shown in the image", "refer to the diagram", or "based on the figure above". If a section relies heavily on images and lacks sufficient explanatory text, skip it and redistribute the questions to sections with adequate text content. Never reference other sections in something like “Which of the following are characteristics of 9. Summary? (Choose all that apply)"
 - Include a mix of question types:
   - Conceptual understanding ("What is the purpose of…?")
   - Feature identification ("Which feature allows you to…?")
@@ -152,6 +152,7 @@ Generate questions distributed across the training content. If the user specifie
 - Avoid trivial questions that can be answered by a single word from a heading.
 - Avoid negative questions ("Which of the following is NOT…") — use them sparingly at most.
 - Do **not** invent features, facts, or concepts that are not present in the training material.
+- Questions should be challenging and engaging. They should not be simple and a waste of time.
 
 **Single-choice (`single`) questions:**
 - Exactly **4 options**.
@@ -169,15 +170,15 @@ Generate questions distributed across the training content. If the user specifie
 - Phrase the question clearly so the user knows to select all that apply (e.g., "Which of the following…? (Choose all that apply.)").
 
 **Topic assignment:**
-- Derive the `topic` from the nearest module or section heading.
-- Keep topic labels concise (3–6 words).
+- Derive the `topic` from the SUMMARY.md file “Learning Paths”. If they are not present then derive `topic` from the nearest module or section heading.
+- Where possible, match topic labels to the learning paths.
 - Use consistent topic labels for questions from the same section.
 
 ### Step 5 — Write the output file
 
 Write the complete JSON to a file named `{exam-code}.json` (e.g., `pl-400.json`, `pl-900.json`) in the training directory.
 
-This is the only file that may be created or modified. Do not leave behind generated scripts, temporary files, partial question banks, analysis notes, or other artifacts.
+This is the only file that may be created or modified and left afterwards. Do not leave behind generated scripts, temporary files, partial question banks, analysis notes, or other artifacts.
 
 Validate the JSON:
 - `questionCount` must equal `questions.length`
@@ -186,6 +187,7 @@ Validate the JSON:
 - For `multiple` type: `answers.length` is between 1 and 5, and `options.length === 5`
 - No duplicate questions
 - All `id` values are sequential from 1
+- Validate that options in the options array are strings and not arrays or strings.
 
 Report the total questions generated and the file path to the user.
 
