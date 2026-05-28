@@ -1,5 +1,5 @@
 ---
-name: dynamics-365
+name: dynamics-webapi
 description: Read-only access to Dynamics 365 WebAPI. Use for querying Dataverse entities, running WhoAmI/health checks, listing entity sets, and reading records. Requires a token.json file with a valid Bearer accessToken.
 ---
 
