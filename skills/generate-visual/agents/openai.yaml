@@ -1,0 +1,4 @@
+interface:
+  display_name: "Generate Visual"
+  short_description: "Create single-file HTML visual documents"
+  default_prompt: "Use $generate-visual to create a self-contained HTML visual artifact from my prompt."

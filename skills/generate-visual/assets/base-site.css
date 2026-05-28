@@ -1,0 +1,54 @@
+:root {
+  --ivory:  #F6F8F3;
+  --paper:  #FFFFFF;
+  --white:  #FFFFFF;
+  --slate:  #17201B;
+  --clay:   #2E7D73;
+  --clay-d: #1F625A;
+  --rust:   #B65F4A;
+  --oat:    #DCE8E2;
+  --olive:  #A88732;
+  --sky:    #6A8CAF;
+
+  --g100:      #EEF2EC;
+  --g200:      #E2E8E1;
+  --g300:      #CBD4CD;
+  --g500:      #747F78;
+  --g700:      #36413B;
+  --gray-50:   #F6F8F3;
+  --gray-100:  #EEF2EC;
+  --gray-150:  #E8EDE7;
+  --gray-200:  #E2E8E1;
+  --gray-300:  #CBD4CD;
+  --gray-500:  #747F78;
+  --gray-700:  #36413B;
+  --gray-800:  #253029;
+
+  --border: 1.5px solid var(--gray-300);
+  --radius-panel: 14px;
+  --radius-row: 8px;
+  --card-border: 1.5px solid var(--gray-300);
+  --card-pad: 20px;
+  --card-shadow: 0 10px 30px rgba(23, 32, 27, 0.08);
+  --ease: cubic-bezier(.2,.8,.2,1);
+
+  --serif: ui-serif, Georgia, "Times New Roman", Times, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--ivory);
+  color: var(--slate);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(46, 125, 115, 0.18);
+}

@@ -24,14 +24,30 @@ A `token.json` file must exist in **either** the current working directory **or*
 
 The `accessToken` is sent as `Authorization: Bearer <accessToken>` on every request. The `expires_on` field (Unix timestamp) is checked and a warning is shown if the token appears expired.
 
+## Fast path
+
+Prefer the Python helper. It uses only the Python standard library, so it avoids `npx`, npm registry checks, package resolution, `tsx` startup, and any network-dependent npm cache behavior.
+
+```bash
+python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com whoami
+```
+
+If `python` is not on PATH, try `py` on Windows:
+
+```powershell
+py .\scripts\dynamics_api.py https://contoso.crm.dynamics.com whoami
+```
+
+The TypeScript helper remains available as a fallback when Node tooling is already warm or when you are actively editing the TypeScript version.
+
 ## Actions
 
-All actions go through the TypeScript helper script. The Dynamics URL is the base organisation URL, e.g. `https://contoso.crm.dynamics.com`.
+All actions go through the Python helper script by default. The Dynamics URL is the base organisation URL, e.g. `https://contoso.crm.dynamics.com`.
 
 ### WhoAmI — verify authentication
 
 ```bash
-npx tsx ./scripts/dynamics-api.ts https://contoso.crm.dynamics.com whoami
+python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com whoami
 ```
 
 Returns `UserId`, `BusinessUnitId`, and `OrganizationId`.
@@ -39,7 +55,7 @@ Returns `UserId`, `BusinessUnitId`, and `OrganizationId`.
 ### Health Check — full diagnostics
 
 ```bash
-npx tsx ./scripts/dynamics-api.ts https://contoso.crm.dynamics.com health
+python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com health
 ```
 
 Runs three checks:
@@ -51,16 +67,16 @@ Runs three checks:
 
 ```bash
 # Get all accounts (default top from server)
-npx tsx ./scripts/dynamics-api.ts https://contoso.crm.dynamics.com get accounts
+python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com get accounts
 
 # With OData query
-npx tsx ./scripts/dynamics-api.ts https://contoso.crm.dynamics.com get "accounts?\$select=name,accountid&\$top=5"
+python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com get "accounts?\$select=name,accountid&\$top=5"
 
 # Full path
-npx tsx ./scripts/dynamics-api.ts https://contoso.crm.dynamics.com get "api/data/v9.2/accounts?\$top=3"
+python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com get "api/data/v9.2/accounts?\$top=3"
 
 # Absolute URL
-npx tsx ./scripts/dynamics-api.ts https://contoso.crm.dynamics.com get "https://contoso.crm.dynamics.com/api/data/v9.2/accounts?\$top=3"
+python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com get "https://contoso.crm.dynamics.com/api/data/v9.2/accounts?\$top=3"
 ```
 
 The script automatically prepends the API base URL (`/api/data/v9.2/`) unless the path starts with `http` or `api/`.
@@ -68,7 +84,7 @@ The script automatically prepends the API base URL (`/api/data/v9.2/`) unless th
 ### List entity sets
 
 ```bash
-npx tsx ./scripts/dynamics-api.ts https://contoso.crm.dynamics.com list
+python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com list
 ```
 
 Shows all available OData entity set names and their URLs.
@@ -77,10 +93,16 @@ Shows all available OData entity set names and their URLs.
 
 ```bash
 # All entity definitions (summary)
-npx tsx ./scripts/dynamics-api.ts https://contoso.crm.dynamics.com metadata
+python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com metadata
 
 # Specific entity
-npx tsx ./scripts/dynamics-api.ts https://contoso.crm.dynamics.com metadata account
+python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com metadata account
+```
+
+## TypeScript fallback
+
+```bash
+npx tsx ./scripts/dynamics-api.ts https://contoso.crm.dynamics.com whoami
 ```
 
 ## OData Query Tips
