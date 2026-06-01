@@ -2,49 +2,57 @@
 """Dynamics 365 WebAPI helper - read-only access.
 
 Usage:
-  python scripts/dynamics_api.py <dynamics-url> whoami
-  python scripts/dynamics_api.py <dynamics-url> health
-  python scripts/dynamics_api.py <dynamics-url> get <path-or-query>
-  python scripts/dynamics_api.py <dynamics-url> list
-  python scripts/dynamics_api.py <dynamics-url> metadata [entity-logical-name]
+  python scripts/dynamics_api.py <dynamics-url-or-host> whoami
+  python scripts/dynamics_api.py <dynamics-url-or-host> health
+  python scripts/dynamics_api.py <dynamics-url-or-host> get <path-or-query>
+  python scripts/dynamics_api.py <dynamics-url-or-host> list
+  python scripts/dynamics_api.py <dynamics-url-or-host> metadata [entity-logical-name]
 """
 
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 
-def find_token_file() -> Path:
+def normalize_dynamics_url(value: str) -> str:
+    raw = value.strip()
+    if not raw:
+        print("ERROR: Dynamics URL is empty.", file=sys.stderr)
+        raise SystemExit(1)
+
+    if "://" not in raw:
+        raw = f"https://{raw}"
+
+    parsed = urllib.parse.urlsplit(raw)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        print(f"ERROR: Invalid Dynamics URL or host: {value}", file=sys.stderr)
+        raise SystemExit(1)
+
+    return f"https://{parsed.netloc.rstrip('/')}"
+
+
+def find_token_file() -> Path | None:
     cwd = Path.cwd() / "token.json"
     home = Path.home() / ".dynamics" / "token.json"
     if cwd.exists():
         return cwd
     if home.exists():
         return home
+    return None
 
-    print("ERROR: token.json not found in current directory or ~/.dynamics/", file=sys.stderr)
-    print("Expected format:", file=sys.stderr)
-    print(
-        json.dumps(
-            {
-                "accessToken": "...",
-                "expiresIn": "",
-                "expires_on": 0,
-                "subscription": "",
-                "tenant": "",
-                "tokenType": "Bearer",
-            },
-            indent=4,
-        ),
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
+
+def default_token_file() -> Path:
+    return Path.cwd() / "token.json"
 
 
 def load_token(path: Path) -> dict[str, Any]:
@@ -55,8 +63,110 @@ def load_token(path: Path) -> dict[str, Any]:
         raise SystemExit(1)
 
 
+def token_expiry_epoch(token: dict[str, Any]) -> int:
+    expires_on = token.get("expires_on")
+    if expires_on:
+        try:
+            return int(expires_on)
+        except (TypeError, ValueError):
+            return 0
+
+    expires_on_text = token.get("expiresOn")
+    if isinstance(expires_on_text, str) and expires_on_text.strip():
+        for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+            try:
+                return int(datetime.strptime(expires_on_text, fmt).timestamp())
+            except ValueError:
+                continue
+
+    return 0
+
+
+def token_is_expired(token: dict[str, Any]) -> bool:
+    expires_on = token_expiry_epoch(token)
+    return not expires_on or expires_on <= int(time.time())
+
+
+def get_tenant(token: dict[str, Any] | None, explicit_tenant: str | None) -> str | None:
+    if explicit_tenant:
+        return explicit_tenant
+    if token and token.get("tenant"):
+        return str(token["tenant"])
+    return None
+
+
+def run_az(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
+    az_path = shutil.which("az")
+    if not az_path:
+        print("ERROR: Azure CLI 'az' was not found on PATH.", file=sys.stderr)
+        print("Install Azure CLI or add it to PATH, then reopen the shell.", file=sys.stderr)
+        raise SystemExit(1)
+
+    command = [az_path, *args]
+    return subprocess.run(command, **kwargs)
+
+
+def generate_token(resource_url: str, token_path: Path, tenant: str | None = None) -> dict[str, Any]:
+    print("Logging into Azure CLI...")
+    print("-------------------------------------------------------")
+    login_cmd = ["login", "--allow-no-subscriptions"]
+    if tenant:
+        login_cmd.extend(["--tenant", tenant])
+
+    login = run_az(login_cmd)
+    if login.returncode != 0:
+        print("ERROR: Azure login failed.", file=sys.stderr)
+        raise SystemExit(1)
+
+    print()
+    print(f"Attempting to get access token for resource: {resource_url}")
+    print("-------------------------------------------------------")
+    token_cmd = ["account", "get-access-token", "--resource", resource_url, "--output", "json"]
+    if tenant:
+        token_cmd.extend(["--tenant", tenant])
+
+    token_result = run_az(token_cmd, capture_output=True, text=True)
+    if token_result.returncode != 0:
+        token_path.unlink(missing_ok=True)
+        if token_result.stderr:
+            print(token_result.stderr.strip(), file=sys.stderr)
+        print("ERROR: Failed to generate token.", file=sys.stderr)
+        raise SystemExit(1)
+
+    try:
+        token = json.loads(token_result.stdout)
+    except Exception as exc:
+        token_path.unlink(missing_ok=True)
+        print(f"ERROR: Azure CLI returned invalid token JSON: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+
+    token_path.write_text(json.dumps(token, indent=2), encoding="utf-8")
+    print(f"Token saved to: {token_path}")
+    return token
+
+
+def ensure_token(resource_url: str, explicit_tenant: str | None = None) -> tuple[Path, dict[str, Any]]:
+    token_path = find_token_file()
+    token = load_token(token_path) if token_path else None
+
+    if token_path is None:
+        token_path = default_token_file()
+        print("token.json not found in current directory or ~/.dynamics/.")
+        return token_path, generate_token(resource_url, token_path, explicit_tenant)
+
+    if not token.get("accessToken"):
+        print(f"accessToken is empty in {token_path}; generating a new token.")
+        return token_path, generate_token(resource_url, token_path, get_tenant(token, explicit_tenant))
+
+    if token_is_expired(token):
+        print(f"Token expired in {token_path}; generating a new token.")
+        return token_path, generate_token(resource_url, token_path, get_tenant(token, explicit_tenant))
+
+    return token_path, token
+
+
 def check_expiry(token: dict[str, Any]) -> None:
-    expires_on = int(token.get("expires_on") or 0)
+    expires_on = token_expiry_epoch(token)
     if not expires_on:
         print("  Expiry: Not set")
         return
@@ -188,8 +298,17 @@ def metadata(base_url: str, access_token: str, entity: str | None = None) -> Non
 
 def main() -> None:
     args = sys.argv[1:]
+    explicit_tenant = None
+    if "--tenant" in args:
+        index = args.index("--tenant")
+        if index + 1 >= len(args):
+            print("ERROR: --tenant requires a tenant id or domain", file=sys.stderr)
+            raise SystemExit(1)
+        explicit_tenant = args[index + 1]
+        del args[index : index + 2]
+
     if len(args) < 2:
-        print("Usage: python scripts/dynamics_api.py <dynamics-url> <action> [resource]", file=sys.stderr)
+        print("Usage: python scripts/dynamics_api.py [--tenant <tenant>] <dynamics-url-or-host> <action> [resource]", file=sys.stderr)
         print("", file=sys.stderr)
         print("Actions:", file=sys.stderr)
         print("  whoami              Get current user info", file=sys.stderr)
@@ -199,13 +318,12 @@ def main() -> None:
         print("  metadata [entity]   Entity definitions (optionally filter by logical name)", file=sys.stderr)
         raise SystemExit(1)
 
-    dynamics_url = args[0].rstrip("/")
+    dynamics_url = normalize_dynamics_url(args[0])
     action = args[1]
     resource = args[2] if len(args) > 2 else ""
     api_base = f"{dynamics_url}/api/data/v9.2"
 
-    token_path = find_token_file()
-    token = load_token(token_path)
+    token_path, token = ensure_token(dynamics_url, explicit_tenant)
     access_token = token.get("accessToken")
     if not access_token:
         print(f"ERROR: accessToken is empty in {token_path}", file=sys.stderr)
