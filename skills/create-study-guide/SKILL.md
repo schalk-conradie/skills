@@ -1,6 +1,6 @@
 ---
 name: create-study-guide
-description: Clean up a Microsoft Learn CONTENT.md (produced by the microsoft-exam-docs skill) into a concise, properly formatted study guide. Removes step-by-step exercise instructions, UI walkthrough screenshots, progress markers, and time estimates while preserving conceptual explanations, learning objectives, knowledge checks, and diagrams. Use when the user wants a readable study guide from raw Microsoft Learn training material.
+description: Clean up a Microsoft Learn CONTENT.md (produced by the microsoft-exam-docs skill) into a concise, properly formatted study guide. Removes labs, exercises, knowledge checks, UI walkthrough screenshots, progress markers, and time estimates while preserving conceptual explanations, learning objectives, and diagrams. Use when the user wants a readable study guide from raw Microsoft Learn training material.
 ---
 
 # Create Study Guide
@@ -15,12 +15,8 @@ Transforms a raw `CONTENT.md` + `SUMMARY.md` pair (downloaded Microsoft Learn tr
    - Time estimates (`- 10 minutes`)
    - Source URL blocks (`> Source: ...`)
    - Excessive blank lines
-3. **Removes step-by-step exercise/simulation instructions** and their associated UI screenshots while keeping:
-   - Exercise scenario descriptions
-   - Prerequisites
-   - Summaries / wrap-ups
-   - Conceptual text outside exercises
-4. **Preserves knowledge checks** (quiz questions and answer options).
+3. **Removes lab, exercise, simulation, practice, and hands-on sections** so the guide focuses on theory and concepts.
+4. **Strips knowledge checks** (quiz questions, answer options, and answer explanations).
 5. **Keeps conceptual images** (diagrams, architecture overviews, conceptual screenshots) and removes trivial UI walkthrough screenshots (button clicks, form fields, parameter panels).
 
 ## Usage
@@ -67,7 +63,7 @@ After running the script, do a quick pass for any remaining artifacts:
 
 - **Empty blockquotes** (`>` on a line by itself) may appear where step instructions were removed. You can delete them.
 - **Very large conceptual screenshots** that don't add value can be removed manually.
-- **Duplicate knowledge checks** across modules can be consolidated if desired.
+- **Remaining lab or quiz fragments** can be removed manually if the source used unusual headings.
 - Ensure heading hierarchy is consistent (`#` → `##` → `###`).
 
 ## Dependencies

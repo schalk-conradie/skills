@@ -7,20 +7,10 @@ from pathlib import Path
 
 def is_exercise_heading(text: str) -> bool:
     lower = text.lower()
-    return any(k in lower for k in [
-        "exercise", "simulation", "task ", "walkthrough",
-        "lab ", "practice ", "step-by-step", "hands-on"
-    ])
-
-
-def is_prerequisites_heading(text: str) -> bool:
-    return "prerequisite" in text.lower()
-
-
-def is_summary_heading(text: str) -> bool:
-    t = text.strip().lower()
-    return t in {"summary", "module summary", "what you learned", "wrap-up", "wrap up",
-                 "exercise summary", "task summary", "summary of the exercise"}
+    return bool(re.search(
+        r'\b(exercise|simulation|walkthrough|lab|practice|step-by-step|hands-on)\b',
+        lower,
+    ) or re.search(r'\btask\b', lower))
 
 
 def is_knowledge_check_heading(text: str) -> bool:
@@ -84,10 +74,7 @@ def clean_content(content_path: Path, summary_path: Path, output_path: Path):
     i = 0
 
     in_exercise = False
-    in_prereq = False
-    in_summary = False
     in_knowledge_check = False
-    skip_numbered_block = False
     blank_run = False
 
     while i < n:
@@ -123,81 +110,51 @@ def clean_content(content_path: Path, summary_path: Path, output_path: Path):
         if line.startswith("#"):
             heading_text = line.lstrip("#").strip()
 
-            # Determine if this heading ends the current exercise
+            # Knowledge checks are quiz content, not theory. Drop the entire
+            # section until the next major/module/unit heading.
+            if in_knowledge_check:
+                if is_unit_heading(line) or line.startswith("# ") or line.startswith("## "):
+                    in_knowledge_check = False
+                else:
+                    i += 1
+                    blank_run = False
+                    continue
+
+            # Determine if this heading ends the current exercise/lab.
             if in_exercise:
-                # If it's a unit/module heading, or another exercise, or a top-level learning path
                 if is_unit_heading(line) or is_exercise_heading(heading_text) or line.startswith("# "):
                     in_exercise = False
-                    in_prereq = False
-                    in_summary = False
                 else:
-                    # It's a subsection inside the exercise (Prerequisites, etc.)
-                    in_prereq = is_prerequisites_heading(heading_text)
-                    in_summary = is_summary_heading(heading_text)
+                    i += 1
+                    blank_run = False
+                    continue
 
             if is_exercise_heading(heading_text):
                 in_exercise = True
-                in_prereq = False
-                in_summary = False
                 in_knowledge_check = False
-                skip_numbered_block = False
+                i += 1
+                blank_run = False
+                continue
             elif is_knowledge_check_heading(heading_text):
                 in_knowledge_check = True
                 in_exercise = False
-                in_prereq = False
-                in_summary = False
-                skip_numbered_block = False
-            elif in_knowledge_check and line.startswith("## "):
-                # End of knowledge check section on a major heading
-                in_knowledge_check = False
-
-            out.append(line)
-            i += 1
-            blank_run = False
-            continue
-
-        # Knowledge checks: keep everything
-        if in_knowledge_check:
-            out.append(line)
-            i += 1
-            blank_run = False
-            continue
-
-        # Inside exercise but not prereq/summary
-        if in_exercise and not in_prereq and not in_summary:
-            if looks_like_numbered_step(line):
-                skip_numbered_block = True
                 i += 1
-                # Swallow immediately-following image lines and blank lines
-                while i < n:
-                    ns = content_lines[i].strip()
-                    if ns == "":
-                        i += 1
-                        continue
-                    if is_image_line(content_lines[i]):
-                        i += 1
-                        continue
-                    break
                 blank_run = False
                 continue
 
-            if skip_numbered_block:
-                if stripped == "" or line.startswith(" ") or line.startswith("\t"):
-                    if is_image_line(line):
-                        i += 1
-                        continue
-                    i += 1
-                    continue
-                else:
-                    skip_numbered_block = False
-
-            if is_image_line(line):
-                alt = extract_alt_text(line)
-                if looks_like_ui_screenshot_alt(alt):
-                    i += 1
-                    continue
-
             out.append(line)
+            i += 1
+            blank_run = False
+            continue
+
+        # Knowledge checks: drop everything until the next major heading.
+        if in_knowledge_check:
+            i += 1
+            blank_run = False
+            continue
+
+        # Inside an exercise/lab: drop everything until the next unit/module.
+        if in_exercise:
             i += 1
             blank_run = False
             continue
