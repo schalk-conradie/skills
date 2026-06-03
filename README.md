@@ -24,7 +24,7 @@ npx skills add schalk-conradie/skills --all -g -y
 Use the skill `name` from each skill’s `SKILL.md` frontmatter (see table below):
 
 ```bash
-npx skills add schalk-conradie/skills --skill blueprint --skill dynamics-webapi
+npx skills add schalk-conradie/skills --skill dynamics-webapi --skill generate-visual
 
 # Shorthand: repo@skill
 npx skills add schalk-conradie/skills@microsoft-exam-docs
@@ -48,7 +48,7 @@ npx skills add ./skills/study/microsoft-exam-docs
 | Scope | Flag | Location | Use case |
 |-------|------|----------|----------|
 | Project | (default) | `./.agents/skills/` (agent-specific; see [CLI docs](https://github.com/vercel-labs/skills#installation-scope)) | Shared with the repo / team |
-| Global | `-g` | `~/.agents/skills/` (and agent-specific global paths) | Available in all projects |
+| Global | `-g` | `~/.agents/skills/` (and agent-specific global paths) | Available across all projects |
 
 Symlink installs are recommended when the CLI prompts you; they keep a single copy easy to update with `npx skills update`.
 
@@ -56,7 +56,7 @@ Symlink installs are recommended when the CLI prompts you; they keep a single co
 
 ```
 skills/
-├── documentation/   # Blueprint DOCX, D365 as-built, HTML visuals
+├── documentation/   # D365 as-built, HTML visuals
 ├── dynamics/        # Dataverse / Dynamics 365 Web API
 ├── personal/        # Convex self-host, Vite + shadcn stack bootstrap
 ├── study/           # Microsoft Learn exam material and study tools
@@ -69,7 +69,6 @@ skills/
 
 | Skill | Path | Description |
 |-------|------|-------------|
-| [blueprint](skills/documentation/blueprint/SKILL.md) | `documentation/blueprint` | Technical design blueprint Word documents from Markdown, using the Enterprisecloud Blueprint DOCX template |
 | [d365-asbuilt](skills/documentation/d365-asbuilt/SKILL.md) | `documentation/d365-asbuilt` | Dynamics 365 as-built documentation from solution exports; chapter extraction, flow diagrams, Word cleanup |
 | [generate-visual](skills/documentation/generate-visual/SKILL.md) | `documentation/generate-visual` | Self-contained single-file HTML artifacts (decks, reports, diagrams, prototypes) instead of markdown |
 
@@ -102,8 +101,8 @@ Typical study workflow: `microsoft-exam-docs` → `create-study-guide` → `exam
 npx skills list
 npx skills find microsoft
 npx skills update
-npx skills update blueprint
-npx skills remove blueprint
+npx skills update dynamics-webapi
+npx skills remove dynamics-webapi
 ```
 
 ## Publishing
