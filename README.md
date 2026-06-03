@@ -1,4 +1,4 @@
-# ai-collection
+# Skills
 
 A collection of [Agent Skills](https://agentskills.io) for Cursor, Claude Code, Codex, and [other supported agents](https://github.com/vercel-labs/skills#supported-agents). Skills are grouped by domain under [`skills/`](skills/).
 
@@ -69,30 +69,30 @@ skills/
 
 | Skill | Path | Description |
 |-------|------|-------------|
-| [blueprint](skills/documentation/blueprint/) | `documentation/blueprint` | Technical design blueprint Word documents from Markdown, using the Enterprisecloud Blueprint DOCX template |
-| [d365-asbuilt](skills/documentation/d365-asbuilt/) | `documentation/d365-asbuilt` | Dynamics 365 as-built documentation from solution exports; chapter extraction, flow diagrams, Word cleanup |
-| [generate-visual](skills/documentation/generate-visual/) | `documentation/generate-visual` | Self-contained single-file HTML artifacts (decks, reports, diagrams, prototypes) instead of markdown |
+| [blueprint](skills/documentation/blueprint/SKILL.md) | `documentation/blueprint` | Technical design blueprint Word documents from Markdown, using the Enterprisecloud Blueprint DOCX template |
+| [d365-asbuilt](skills/documentation/d365-asbuilt/SKILL.md) | `documentation/d365-asbuilt` | Dynamics 365 as-built documentation from solution exports; chapter extraction, flow diagrams, Word cleanup |
+| [generate-visual](skills/documentation/generate-visual/SKILL.md) | `documentation/generate-visual` | Self-contained single-file HTML artifacts (decks, reports, diagrams, prototypes) instead of markdown |
 
 ### Dynamics
 
 | Skill | Path | Description |
 |-------|------|-------------|
-| [dynamics-webapi](skills/dynamics/dynamics-webapi/) | `dynamics/dynamics-webapi` | Read-only Dynamics 365 / Dataverse Web API queries (requires `token.json`) |
+| [dynamics-webapi](skills/dynamics/dynamics-webapi/SKILL.md) | `dynamics/dynamics-webapi` | Read-only Dynamics 365 / Dataverse Web API queries (requires `token.json`) |
 
 ### Personal
 
 | Skill | Path | Description |
 |-------|------|-------------|
-| [convex-self-host](skills/personal/convex-self-host/) | `personal/convex-self-host` | Bootstrap self-hosted Convex with Docker Compose |
-| [vite-react-shadcn-convex-setup](skills/personal/vite-react-shadcn-convex-setup/) | `personal/vite-react-shadcn-convex-setup` | In-place Vite + React + TypeScript + Tailwind + shadcn/ui + Zod + Zustand + TanStack Query + Convex |
+| [convex-self-host](skills/personal/convex-self-host/SKILL.md) | `personal/convex-self-host` | Bootstrap self-hosted Convex with Docker Compose |
+| [vite-react-shadcn-convex-setup](skills/personal/vite-react-shadcn-convex-setup/SKILL.md) | `personal/vite-react-shadcn-convex-setup` | In-place Vite + React + TypeScript + Tailwind + shadcn/ui + Zod + Zustand + TanStack Query + Convex |
 
 ### Study
 
 | Skill | Path | Description |
 |-------|------|-------------|
-| [microsoft-exam-docs](skills/study/microsoft-exam-docs/) | `study/microsoft-exam-docs` | Download Microsoft Learn training material for a certification exam code |
-| [create-study-guide](skills/study/create-study-guide/) | `study/create-study-guide` | Turn downloaded `CONTENT.md` into a concise `STUDY_GUIDE.md` |
-| [exam-qa-generator](skills/study/exam-qa-generator/) | `study/exam-qa-generator` | Generate multiple-choice / multiple-select practice Q&A JSON from Learn material |
+| [microsoft-exam-docs](skills/study/microsoft-exam-docs/SKILL.md) | `study/microsoft-exam-docs` | Download Microsoft Learn training material for a certification exam code |
+| [create-study-guide](skills/study/create-study-guide/SKILL.md) | `study/create-study-guide` | Turn downloaded `CONTENT.md` into a concise `STUDY_GUIDE.md` |
+| [exam-qa-generator](skills/study/exam-qa-generator/SKILL.md) | `study/exam-qa-generator` | Generate multiple-choice / multiple-select practice Q&A JSON from Learn material |
 
 Typical study workflow: `microsoft-exam-docs` → `create-study-guide` → `exam-qa-generator`.
 
