@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Usage"
+  short_description: "Summarize local Codex token usage and API-equivalent spend."
+  default_prompt: "Summarize my Codex usage for the last 7 days with token, model, and cost breakdowns."
