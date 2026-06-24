@@ -10,10 +10,12 @@
  *   npx tsx dynamics-api.ts <dynamics-url-or-host> metadata [entity-logical-name]
  */
 
-import { readFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, existsSync, rmSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
+
+const DATAVERSE_PUBLIC_CLIENT_ID = "51f81489-12ee-4a9e-aaae-a2591f45987d";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,52 +23,70 @@ import { spawnSync } from "node:child_process";
 
 interface TokenFile {
   accessToken: string;
+  refreshToken?: string;
+  refresh_token?: string;
   expiresIn?: string;
   expiresOn?: string;
   expires_on?: number;
+  expiresAt?: number;
+  scope?: string;
   subscription?: string;
   tenant?: string;
   tokenType?: string;
+}
+
+interface OpenDataverseEnvironment {
+  id?: string;
+  url?: string;
+}
+
+interface OpenDataverseConfig {
+  environments?: OpenDataverseEnvironment[];
 }
 
 // ---------------------------------------------------------------------------
 // Token loading
 // ---------------------------------------------------------------------------
 
-function normalizeDynamicsUrl(value: string): string {
+function normalizedDynamicsUrlOrUndefined(value: string | undefined): string | undefined {
+  if (!value) return undefined;
   const raw = value.trim();
-  if (!raw) {
-    console.error("ERROR: Dynamics URL is empty.");
-    process.exit(1);
-  }
+  if (!raw) return undefined;
 
   const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
   let parsed: URL;
   try {
     parsed = new URL(withScheme);
   } catch {
-    console.error(`ERROR: Invalid Dynamics URL or host: ${value}`);
-    process.exit(1);
+    return undefined;
   }
 
   if (!["http:", "https:"].includes(parsed.protocol) || !parsed.host) {
-    console.error(`ERROR: Invalid Dynamics URL or host: ${value}`);
-    process.exit(1);
+    return undefined;
   }
 
   return `https://${parsed.host}`;
 }
 
-function findTokenFile(): string | undefined {
-  const cwd = join(process.cwd(), "token.json");
-  const home = join(homedir(), ".dynamics", "token.json");
-  if (existsSync(cwd)) return cwd;
-  if (existsSync(home)) return home;
-  return undefined;
+function normalizeDynamicsUrl(value: string): string {
+  const normalized = normalizedDynamicsUrlOrUndefined(value);
+  if (!normalized) {
+    console.error(`ERROR: Invalid Dynamics URL or host: ${value}`);
+    process.exit(1);
+  }
+  return normalized;
+}
+
+function localTokenFile(): string {
+  return join(process.cwd(), "token.json");
+}
+
+function homeDynamicsTokenFile(): string {
+  return join(homedir(), ".dynamics", "token.json");
 }
 
 function defaultTokenFile(): string {
-  return join(process.cwd(), "token.json");
+  return localTokenFile();
 }
 
 function loadToken(path: string): TokenFile {
@@ -78,7 +98,25 @@ function loadToken(path: string): TokenFile {
   }
 }
 
+function tryLoadToken(path: string, label: string): TokenFile | undefined {
+  try {
+    return JSON.parse(readFileSync(path, "utf-8"));
+  } catch (err) {
+    console.log(`Skipping ${label} token at ${path}; failed to parse JSON: ${err}`);
+    return undefined;
+  }
+}
+
+function writeJsonAtomic(path: string, value: Record<string, unknown>): void {
+  const dir = dirname(path);
+  if (dir && !existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const tmp = join(dir || process.cwd(), `.${basename(path)}.tmp`);
+  writeFileSync(tmp, JSON.stringify(value, null, 2), "utf-8");
+  renameSync(tmp, path);
+}
+
 function tokenExpiryEpoch(token: TokenFile): number {
+  if (token.expiresAt) return Number(token.expiresAt);
   if (token.expires_on) return Number(token.expires_on);
   if (token.expiresOn?.trim()) {
     const normalized = token.expiresOn.trim().replace(" ", "T").replace(/\.\d+$/, "");
@@ -95,6 +133,150 @@ function tokenIsExpired(token: TokenFile): boolean {
 
 function getTenant(token: TokenFile | undefined, explicitTenant?: string): string | undefined {
   return explicitTenant || token?.tenant;
+}
+
+function validExistingToken(
+  tokenPath: string,
+  token: TokenFile | undefined,
+  label: string,
+): { tokenPath: string; token: TokenFile } | undefined {
+  if (!token) return undefined;
+  if (!token.accessToken) {
+    console.log(`Skipping ${label} token at ${tokenPath}; accessToken is empty.`);
+    return undefined;
+  }
+  if (tokenIsExpired(token)) {
+    console.log(`Skipping expired ${label} token at ${tokenPath}.`);
+    return undefined;
+  }
+  return { tokenPath, token };
+}
+
+function findOpenDataverseTokenFile(resourceUrl: string): string | undefined {
+  const configPath = join(homedir(), ".OpenDataverse", "config.json");
+  if (!existsSync(configPath)) return undefined;
+
+  let config: OpenDataverseConfig;
+  try {
+    config = JSON.parse(readFileSync(configPath, "utf-8"));
+  } catch (err) {
+    console.log(`Skipping OpenDataverse; failed to parse ${configPath}: ${err}`);
+    return undefined;
+  }
+
+  if (!Array.isArray(config.environments)) {
+    console.log(`Skipping OpenDataverse; ${configPath} has no environments list.`);
+    return undefined;
+  }
+
+  for (const environment of config.environments) {
+    const envUrl = normalizedDynamicsUrlOrUndefined(environment.url);
+    if (!envUrl || envUrl.toLowerCase() !== resourceUrl.toLowerCase() || !environment.id) {
+      continue;
+    }
+
+    const tokenPath = join(homedir(), ".OpenDataverse", "tokens", `token-${environment.id}.json`);
+    if (existsSync(tokenPath)) return tokenPath;
+    console.log(`OpenDataverse matched ${resourceUrl}, but token file is missing: ${tokenPath}`);
+    return undefined;
+  }
+
+  return undefined;
+}
+
+async function refreshOpenDataverseToken(
+  resourceUrl: string,
+  tokenPath: string,
+  token: TokenFile,
+  explicitTenant?: string,
+): Promise<TokenFile | undefined> {
+  const refreshToken = token.refreshToken ?? token.refresh_token;
+  if (!refreshToken) {
+    console.log(`OpenDataverse token at ${tokenPath} is expired and has no refreshToken.`);
+    return undefined;
+  }
+
+  const tenant = explicitTenant ?? "organizations";
+  const body = new URLSearchParams({
+    client_id: DATAVERSE_PUBLIC_CLIENT_ID,
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    scope: `${resourceUrl}/user_impersonation offline_access`,
+  });
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      },
+    );
+  } catch (err) {
+    console.log(`OpenDataverse token refresh failed: ${err}`);
+    return undefined;
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    console.log(`OpenDataverse token refresh failed: HTTP ${response.status} ${response.statusText}: ${text.slice(0, 300)}`);
+    return undefined;
+  }
+
+  const result = await response.json() as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number | string;
+    token_type?: string;
+    scope?: string;
+  };
+  if (!result.access_token) {
+    console.log("OpenDataverse token refresh failed: token endpoint returned no access_token.");
+    return undefined;
+  }
+
+  const expiresIn = Number(result.expires_in ?? 0);
+  const refreshed: TokenFile = {
+    ...token,
+    accessToken: result.access_token,
+    refreshToken: result.refresh_token ?? refreshToken,
+  };
+  if (Number.isFinite(expiresIn) && expiresIn > 0) {
+    refreshed.expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
+  }
+  if (result.token_type) refreshed.tokenType = result.token_type;
+  if (result.scope) refreshed.scope = result.scope;
+
+  writeJsonAtomic(tokenPath, refreshed as unknown as Record<string, unknown>);
+  console.log(`Refreshed OpenDataverse token: ${tokenPath}`);
+  return refreshed;
+}
+
+async function getOpenDataverseToken(
+  resourceUrl: string,
+  explicitTenant?: string,
+): Promise<{ tokenPath: string; token: TokenFile } | undefined> {
+  const tokenPath = findOpenDataverseTokenFile(resourceUrl);
+  if (!tokenPath) return undefined;
+
+  const token = tryLoadToken(tokenPath, "OpenDataverse");
+  if (!token) return undefined;
+  if (!token.accessToken) {
+    console.log(`Skipping OpenDataverse token at ${tokenPath}; accessToken is empty.`);
+    return undefined;
+  }
+  if (!tokenIsExpired(token)) {
+    return { tokenPath, token };
+  }
+
+  console.log(`OpenDataverse token expired at ${tokenPath}; refreshing with stored refreshToken.`);
+  const refreshed = await refreshOpenDataverseToken(resourceUrl, tokenPath, token, explicitTenant);
+  if (refreshed?.accessToken && !tokenIsExpired(refreshed)) {
+    return { tokenPath, token: refreshed };
+  }
+  return undefined;
 }
 
 function generateToken(resourceUrl: string, tokenPath: string, tenant?: string): TokenFile {
@@ -143,32 +325,37 @@ function generateToken(resourceUrl: string, tokenPath: string, tenant?: string):
     process.exit(1);
   }
 
-  writeFileSync(tokenPath, JSON.stringify(token, null, 2), "utf-8");
+  writeJsonAtomic(tokenPath, token as unknown as Record<string, unknown>);
   console.log(`Token saved to: ${tokenPath}`);
   return token;
 }
 
-function ensureToken(resourceUrl: string, explicitTenant?: string): { tokenPath: string; token: TokenFile } {
-  let tokenPath = findTokenFile();
-  let token = tokenPath ? loadToken(tokenPath) : undefined;
-
-  if (!tokenPath) {
-    tokenPath = defaultTokenFile();
-    console.log("token.json not found in current directory or ~/.dynamics/.");
-    return { tokenPath, token: generateToken(resourceUrl, tokenPath, explicitTenant) };
+async function ensureToken(resourceUrl: string, explicitTenant?: string): Promise<{ tokenPath: string; token: TokenFile }> {
+  const tokenPath = localTokenFile();
+  if (existsSync(tokenPath)) {
+    const token = tryLoadToken(tokenPath, "local");
+    const validToken = validExistingToken(tokenPath, token, "local");
+    if (validToken) return validToken;
   }
 
-  if (!token?.accessToken) {
-    console.log(`accessToken is empty in ${tokenPath}; generating a new token.`);
-    return { tokenPath, token: generateToken(resourceUrl, tokenPath, getTenant(token, explicitTenant)) };
+  const openDataverseToken = await getOpenDataverseToken(resourceUrl, explicitTenant);
+  if (openDataverseToken) return openDataverseToken;
+
+  const homeTokenPath = homeDynamicsTokenFile();
+  if (existsSync(homeTokenPath)) {
+    const homeToken = tryLoadToken(homeTokenPath, "home ~/.dynamics");
+    const validHomeToken = validExistingToken(homeTokenPath, homeToken, "home ~/.dynamics");
+    if (validHomeToken) return validHomeToken;
+    console.log(`Using Azure CLI as last resort for ${homeTokenPath}.`);
+    return {
+      tokenPath: homeTokenPath,
+      token: generateToken(resourceUrl, homeTokenPath, getTenant(homeToken, explicitTenant)),
+    };
   }
 
-  if (tokenIsExpired(token)) {
-    console.log(`Token expired in ${tokenPath}; generating a new token.`);
-    return { tokenPath, token: generateToken(resourceUrl, tokenPath, getTenant(token, explicitTenant)) };
-  }
-
-  return { tokenPath, token };
+  const defaultPath = defaultTokenFile();
+  console.log("No valid token found in ./token.json, OpenDataverse, or ~/.dynamics/token.json.");
+  return { tokenPath: defaultPath, token: generateToken(resourceUrl, defaultPath, explicitTenant) };
 }
 
 function checkExpiry(token: TokenFile): void {
@@ -360,7 +547,7 @@ async function main(): Promise<void> {
   const resource = args[2] ?? "";
   const apiBase = `${dynamicsUrl}/api/data/v9.2`;
 
-  const { tokenPath, token } = ensureToken(dynamicsUrl, explicitTenant);
+  const { tokenPath, token } = await ensureToken(dynamicsUrl, explicitTenant);
 
   if (!token.accessToken) {
     console.error(`ERROR: accessToken is empty in ${tokenPath}`);

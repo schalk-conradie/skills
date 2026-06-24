@@ -1,6 +1,6 @@
 ---
 name: dynamics-webapi
-description: Read-only access to Dynamics 365 WebAPI. Use for querying Dataverse entities, running WhoAmI/health checks, listing entity sets, and reading records. Uses token.json when valid and can refresh missing or expired tokens through Azure CLI.
+description: Read-only access to Dynamics 365 WebAPI. Use for querying Dataverse entities, running WhoAmI/health checks, listing entity sets, and reading records. Uses valid local tokens first, then OpenDataverse tokens, then ~/.dynamics, with Azure CLI as a last resort.
 ---
 
 # Dynamics 365 Skill
@@ -9,7 +9,14 @@ Read-only WebAPI access to a Dynamics 365 / Dataverse environment.
 
 ## Prerequisites
 
-A `token.json` file can exist in **either** the current working directory **or** `~/.dynamics/token.json` with this structure:
+The helper resolves authentication in this order:
+
+1. `./token.json`, but only when it is present, has an `accessToken`, and is not expired.
+2. `~/.OpenDataverse/config.json`, matched by the requested Dataverse URL. The matching token is loaded from `~/.OpenDataverse/tokens/token-<environmentId>.json`.
+3. `~/.dynamics/token.json` as the last reusable-token source.
+4. Azure CLI token generation only if no reusable source works.
+
+The local `./token.json` and `~/.dynamics/token.json` files use the Azure CLI token shape:
 
 ```json
 {
@@ -23,11 +30,23 @@ A `token.json` file can exist in **either** the current working directory **or**
 }
 ```
 
+OpenDataverse token files use this shape:
+
+```json
+{
+    "accessToken": "<your-access-token>",
+    "refreshToken": "<your-refresh-token>",
+    "expiresAt": 1781874173
+}
+```
+
 The first positional Dynamics argument can be either the host name or the full organisation URL. For example, `contoso.crm.dynamics.com`, `https://contoso.crm.dynamics.com`, and `https://contoso.crm.dynamics.com/api/data/v9.2` are normalized to `https://contoso.crm.dynamics.com`. That normalized URL is used as both the WebAPI base and the Azure CLI token resource.
 
-The `accessToken` is sent as `Authorization: Bearer <accessToken>` on every request. The helper checks `expires_on` (Unix timestamp) first, then falls back to the Azure CLI `expiresOn` timestamp string when present. If neither expiry value can be read, the token is treated as expired and refreshed before making the API request.
+The `accessToken` is sent as `Authorization: Bearer <accessToken>` on every request. The helper checks OpenDataverse `expiresAt` first, then Azure CLI `expires_on` (Unix timestamp), then the Azure CLI `expiresOn` timestamp string. If no expiry value can be read, the token is treated as expired.
 
-If `token.json` is missing, `accessToken` is empty, or the expiry is missing/invalid/in the past, the helper generates a new token with Azure CLI:
+When an OpenDataverse token is expired, the helper uses the stored `refreshToken` with the Microsoft Entra token endpoint and the Dataverse public-client scope `<environment-url>/user_impersonation offline_access`. The refreshed access token and replacement refresh token are written back to the same OpenDataverse token file. If the refresh token is revoked, invalid, or requires interaction, the helper falls back to `~/.dynamics/token.json` and then Azure CLI.
+
+If all reusable sources are missing, empty, invalid, or expired, the helper generates a new token with Azure CLI:
 
 1. Runs `az login --allow-no-subscriptions`, optionally with `--tenant <tenant_id_or_domain>`
 2. Waits for the browser-based sign-in flow to complete
@@ -36,7 +55,7 @@ If `token.json` is missing, `accessToken` is empty, or the expiry is missing/inv
 
 This is implemented inside the Python and TypeScript helpers rather than shell-profile functions, so it works from PowerShell, zsh, bash, and the Codex shell as long as `az` is on `PATH`.
 
-When a token already exists in `~/.dynamics/token.json`, refreshes are written back to that same file. When no token file exists, the new token is written to `./token.json` in the current working directory.
+When `~/.dynamics/token.json` exists but is unusable and no OpenDataverse token can be used, Azure CLI refreshes are written back to that same file. When no token file exists, the new Azure CLI token is written to `./token.json` in the current working directory.
 
 Azure CLI must be installed and available on `PATH` for automatic token generation.
 
@@ -142,7 +161,7 @@ Remember to escape `$` in shell: use `\$` or wrap the query in single quotes.
 ## Important Notes
 
 - **Read-only**: This skill only performs GET requests. No create, update, or delete operations.
-- **Token refresh**: The script uses an existing valid token, but automatically refreshes when the token is missing, expired, or has an empty `accessToken`.
+- **Token refresh**: The script uses a valid local token first, refreshes expired OpenDataverse tokens with their stored `refreshToken`, and uses Azure CLI only after reusable token sources fail.
 - **Interactive login**: Token generation may open a browser and wait for the user to complete Azure authentication.
 - **Pagination**: If the response contains `@odata.nextLink`, it is printed at the bottom. Fetch the next page with `get <nextLinkUrl>`.
 - **Rate limits**: Dynamics 365 enforces API throttling. For large queries, use `$top` and pagination.

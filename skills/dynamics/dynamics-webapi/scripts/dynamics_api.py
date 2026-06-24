@@ -24,35 +24,46 @@ from pathlib import Path
 from typing import Any
 
 
-def normalize_dynamics_url(value: str) -> str:
+DATAVERSE_PUBLIC_CLIENT_ID = "51f81489-12ee-4a9e-aaae-a2591f45987d"
+
+
+def normalized_dynamics_url_or_none(value: str) -> str | None:
     raw = value.strip()
     if not raw:
-        print("ERROR: Dynamics URL is empty.", file=sys.stderr)
-        raise SystemExit(1)
+        return None
 
     if "://" not in raw:
         raw = f"https://{raw}"
 
-    parsed = urllib.parse.urlsplit(raw)
+    try:
+        parsed = urllib.parse.urlsplit(raw)
+    except ValueError:
+        return None
+
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        print(f"ERROR: Invalid Dynamics URL or host: {value}", file=sys.stderr)
-        raise SystemExit(1)
+        return None
 
     return f"https://{parsed.netloc.rstrip('/')}"
 
 
-def find_token_file() -> Path | None:
-    cwd = Path.cwd() / "token.json"
-    home = Path.home() / ".dynamics" / "token.json"
-    if cwd.exists():
-        return cwd
-    if home.exists():
-        return home
-    return None
+def normalize_dynamics_url(value: str) -> str:
+    normalized = normalized_dynamics_url_or_none(value)
+    if not normalized:
+        print(f"ERROR: Invalid Dynamics URL or host: {value}", file=sys.stderr)
+        raise SystemExit(1)
+    return normalized
+
+
+def local_token_file() -> Path:
+    return Path.cwd() / "token.json"
+
+
+def home_dynamics_token_file() -> Path:
+    return Path.home() / ".dynamics" / "token.json"
 
 
 def default_token_file() -> Path:
-    return Path.cwd() / "token.json"
+    return local_token_file()
 
 
 def load_token(path: Path) -> dict[str, Any]:
@@ -63,7 +74,29 @@ def load_token(path: Path) -> dict[str, Any]:
         raise SystemExit(1)
 
 
+def try_load_token(path: Path, label: str) -> dict[str, Any] | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"Skipping {label} token at {path}; failed to parse JSON: {exc}")
+        return None
+
+
+def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(json.dumps(value, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
 def token_expiry_epoch(token: dict[str, Any]) -> int:
+    expires_at = token.get("expiresAt")
+    if expires_at:
+        try:
+            return int(expires_at)
+        except (TypeError, ValueError):
+            return 0
+
     expires_on = token.get("expires_on")
     if expires_on:
         try:
@@ -92,6 +125,144 @@ def get_tenant(token: dict[str, Any] | None, explicit_tenant: str | None) -> str
         return explicit_tenant
     if token and token.get("tenant"):
         return str(token["tenant"])
+    return None
+
+
+def valid_existing_token(
+    token_path: Path,
+    token: dict[str, Any] | None,
+    label: str,
+) -> tuple[Path, dict[str, Any]] | None:
+    if not token:
+        return None
+    if not token.get("accessToken"):
+        print(f"Skipping {label} token at {token_path}; accessToken is empty.")
+        return None
+    if token_is_expired(token):
+        print(f"Skipping expired {label} token at {token_path}.")
+        return None
+    return token_path, token
+
+
+def find_open_dataverse_token_file(resource_url: str) -> Path | None:
+    config_path = Path.home() / ".OpenDataverse" / "config.json"
+    if not config_path.exists():
+        return None
+
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"Skipping OpenDataverse; failed to parse {config_path}: {exc}")
+        return None
+
+    environments = config.get("environments")
+    if not isinstance(environments, list):
+        print(f"Skipping OpenDataverse; {config_path} has no environments list.")
+        return None
+
+    for environment in environments:
+        if not isinstance(environment, dict):
+            continue
+        env_url = environment.get("url")
+        env_id = environment.get("id")
+        if not isinstance(env_url, str) or not isinstance(env_id, str):
+            continue
+        normalized_env_url = normalized_dynamics_url_or_none(env_url)
+        if normalized_env_url and normalized_env_url.lower() == resource_url.lower():
+            token_path = config_path.parent / "tokens" / f"token-{env_id}.json"
+            if token_path.exists():
+                return token_path
+            print(f"OpenDataverse matched {resource_url}, but token file is missing: {token_path}")
+            return None
+
+    return None
+
+
+def refresh_open_dataverse_token(
+    resource_url: str,
+    token_path: Path,
+    token: dict[str, Any],
+    explicit_tenant: str | None,
+) -> dict[str, Any] | None:
+    refresh_token = token.get("refreshToken") or token.get("refresh_token")
+    if not isinstance(refresh_token, str) or not refresh_token:
+        print(f"OpenDataverse token at {token_path} is expired and has no refreshToken.")
+        return None
+
+    tenant = explicit_tenant or "organizations"
+    token_url = f"https://login.microsoftonline.com/{urllib.parse.quote(tenant, safe='')}/oauth2/v2.0/token"
+    form = urllib.parse.urlencode(
+        {
+            "client_id": DATAVERSE_PUBLIC_CLIENT_ID,
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "scope": f"{resource_url}/user_impersonation offline_access",
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        token_url,
+        data=form,
+        method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        print(f"OpenDataverse token refresh failed: HTTP {exc.code} {exc.reason}: {body[:300]}")
+        return None
+    except Exception as exc:
+        print(f"OpenDataverse token refresh failed: {exc}")
+        return None
+
+    access_token = result.get("access_token")
+    if not isinstance(access_token, str) or not access_token:
+        print("OpenDataverse token refresh failed: token endpoint returned no access_token.")
+        return None
+
+    try:
+        expires_in = int(result.get("expires_in", 0))
+    except (TypeError, ValueError):
+        expires_in = 0
+
+    refreshed = dict(token)
+    refreshed["accessToken"] = access_token
+    refreshed["refreshToken"] = result.get("refresh_token") or refresh_token
+    if expires_in:
+        refreshed["expiresAt"] = int(time.time()) + expires_in
+    if result.get("token_type"):
+        refreshed["tokenType"] = result["token_type"]
+    if result.get("scope"):
+        refreshed["scope"] = result["scope"]
+
+    write_json_atomic(token_path, refreshed)
+    print(f"Refreshed OpenDataverse token: {token_path}")
+    return refreshed
+
+
+def get_open_dataverse_token(
+    resource_url: str,
+    explicit_tenant: str | None,
+) -> tuple[Path, dict[str, Any]] | None:
+    token_path = find_open_dataverse_token_file(resource_url)
+    if not token_path:
+        return None
+
+    token = try_load_token(token_path, "OpenDataverse")
+    if not token:
+        return None
+    if not token.get("accessToken"):
+        print(f"Skipping OpenDataverse token at {token_path}; accessToken is empty.")
+        return None
+    if not token_is_expired(token):
+        return token_path, token
+
+    print(f"OpenDataverse token expired at {token_path}; refreshing with stored refreshToken.")
+    refreshed = refresh_open_dataverse_token(resource_url, token_path, token, explicit_tenant)
+    if refreshed and refreshed.get("accessToken") and not token_is_expired(refreshed):
+        return token_path, refreshed
     return None
 
 
@@ -146,23 +317,33 @@ def generate_token(resource_url: str, token_path: Path, tenant: str | None = Non
 
 
 def ensure_token(resource_url: str, explicit_tenant: str | None = None) -> tuple[Path, dict[str, Any]]:
-    token_path = find_token_file()
-    token = load_token(token_path) if token_path else None
+    token_path = local_token_file()
+    if token_path.exists():
+        token = try_load_token(token_path, "local")
+        valid_token = valid_existing_token(token_path, token, "local")
+        if valid_token:
+            return valid_token
 
-    if token_path is None:
-        token_path = default_token_file()
-        print("token.json not found in current directory or ~/.dynamics/.")
-        return token_path, generate_token(resource_url, token_path, explicit_tenant)
+    open_dataverse_token = get_open_dataverse_token(resource_url, explicit_tenant)
+    if open_dataverse_token:
+        return open_dataverse_token
 
-    if not token.get("accessToken"):
-        print(f"accessToken is empty in {token_path}; generating a new token.")
-        return token_path, generate_token(resource_url, token_path, get_tenant(token, explicit_tenant))
+    home_token_path = home_dynamics_token_file()
+    if home_token_path.exists():
+        home_token = try_load_token(home_token_path, "home ~/.dynamics")
+        valid_home_token = valid_existing_token(home_token_path, home_token, "home ~/.dynamics")
+        if valid_home_token:
+            return valid_home_token
+        print(f"Using Azure CLI as last resort for {home_token_path}.")
+        return home_token_path, generate_token(
+            resource_url,
+            home_token_path,
+            get_tenant(home_token, explicit_tenant),
+        )
 
-    if token_is_expired(token):
-        print(f"Token expired in {token_path}; generating a new token.")
-        return token_path, generate_token(resource_url, token_path, get_tenant(token, explicit_tenant))
-
-    return token_path, token
+    token_path = default_token_file()
+    print("No valid token found in ./token.json, OpenDataverse, or ~/.dynamics/token.json.")
+    return token_path, generate_token(resource_url, token_path, explicit_tenant)
 
 
 def check_expiry(token: dict[str, Any]) -> None:
