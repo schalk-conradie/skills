@@ -361,6 +361,7 @@ def check_expiry(token: dict[str, Any]) -> None:
 
 
 def api_get(url: str, access_token: str) -> Any:
+    url = encode_url_for_request(url)
     request = urllib.request.Request(
         url,
         method="GET",
@@ -386,6 +387,13 @@ def api_get(url: str, access_token: str) -> Any:
         raise RuntimeError(str(exc.reason)) from exc
 
     return json.loads(body) if body else {}
+
+
+def encode_url_for_request(url: str) -> str:
+    parsed = urllib.parse.urlsplit(url)
+    path = urllib.parse.quote(parsed.path, safe="/()'")
+    query = urllib.parse.quote(parsed.query, safe="$=&,()'/:@%")
+    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, query, parsed.fragment))
 
 
 def whoami(base_url: str, access_token: str) -> None:
@@ -431,8 +439,9 @@ def get_records(base_url: str, access_token: str, resource: str) -> None:
     else:
         full_url = f"{base_url}/{resource}"
 
-    print(f"GET: {full_url}\n")
-    data = api_get(full_url, access_token)
+    request_url = encode_url_for_request(full_url)
+    print(f"GET: {request_url}\n")
+    data = api_get(request_url, access_token)
 
     if isinstance(data, dict) and isinstance(data.get("value"), list):
         print(f"Records: {len(data['value'])}\n")

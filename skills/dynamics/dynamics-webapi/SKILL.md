@@ -113,6 +113,9 @@ python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com get accounts
 # With OData query
 python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com get "accounts?\$select=name,accountid&\$top=5"
 
+# OData expressions with spaces are encoded automatically
+python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com get "accounts?\$select=name,accountid&\$orderby=createdon desc&\$top=5"
+
 # Full path
 python ./scripts/dynamics_api.py https://contoso.crm.dynamics.com get "api/data/v9.2/accounts?\$top=3"
 
@@ -156,7 +159,9 @@ Common query parameters for `get`:
 - `$expand=primarycontactid` — expand related records
 - `$count=true` — include total count
 
-Remember to escape `$` in shell: use `\$` or wrap the query in single quotes.
+The helper percent-encodes unsafe URL characters in paths and queries before sending requests, so OData expressions with spaces such as `$orderby=createdon desc` work without manually writing `%20`.
+
+Remember to escape `$` in shell when using double quotes: use `\$`, or wrap the query in single quotes.
 
 ## Important Notes
 

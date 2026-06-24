@@ -380,6 +380,7 @@ function checkExpiry(token: TokenFile): void {
 // ---------------------------------------------------------------------------
 
 async function apiGet(url: string, accessToken: string): Promise<unknown> {
+  url = encodeUrlForRequest(url);
   const res = await fetch(url, {
     method: "GET",
     headers: {
@@ -395,6 +396,16 @@ async function apiGet(url: string, accessToken: string): Promise<unknown> {
     throw new Error(`HTTP ${res.status} ${res.statusText}${body ? ": " + body.slice(0, 500) : ""}`);
   }
   return res.json();
+}
+
+function encodeUrlForRequest(url: string): string {
+  const parsed = new URL(url);
+  parsed.pathname = parsed.pathname
+    .split("/")
+    .map((part) => encodeURIComponent(decodeURIComponent(part)))
+    .join("/");
+  parsed.search = parsed.search.replace(/ /g, "%20");
+  return parsed.toString();
 }
 
 // ---------------------------------------------------------------------------
@@ -453,9 +464,10 @@ async function getRecords(baseUrl: string, accessToken: string, resource: string
     fullUrl = `${baseUrl}/${resource}`;
   }
 
-  console.log(`GET: ${fullUrl}\n`);
+  const requestUrl = encodeUrlForRequest(fullUrl);
+  console.log(`GET: ${requestUrl}\n`);
 
-  const data = await apiGet(fullUrl, accessToken) as Record<string, unknown>;
+  const data = await apiGet(requestUrl, accessToken) as Record<string, unknown>;
 
   if ("value" in data && Array.isArray(data.value)) {
     console.log(`Records: ${data.value.length}\n`);
