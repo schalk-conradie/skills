@@ -1,4 +1,0 @@
-interface:
-  display_name: "CommandBar Development"
-  short_description: "Build PowerToys Command Palette extensions."
-  default_prompt: "Use $commandbar-development to help me build or debug a PowerToys Command Palette extension."

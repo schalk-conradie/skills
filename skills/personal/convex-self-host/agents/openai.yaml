@@ -1,4 +1,0 @@
-interface:
-  display_name: "Convex Self-Host"
-  short_description: "Set up self-hosted Convex with Docker"
-  default_prompt: "Use $convex-self-host to add a self-hosted Convex Docker setup to this project."

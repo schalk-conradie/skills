@@ -1,4 +1,0 @@
-interface:
-  display_name: "Vite React Shadcn Convex Setup"
-  short_description: "Initialize a Vite React stack with Convex"
-  default_prompt: "Use $vite-react-shadcn-convex-setup to initialize this folder as a Vite React TypeScript app with Tailwind, shadcn/ui, Zod, Zustand, TanStack Query, and Convex AI files."
