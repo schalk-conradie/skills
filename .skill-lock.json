@@ -15,9 +15,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/microsoft/azure-skills.git",
       "skillPath": ".github/plugins/azure-skills/skills/microsoft-foundry/SKILL.md",
-      "skillFolderHash": "b0738a5044cc44847d58befd72c58857063d2cf6",
+      "skillFolderHash": "b78cdbd45134901489e08efd0f8bdabaf673a417",
       "installedAt": "2026-06-10T12:56:40.613Z",
-      "updatedAt": "2026-06-24T12:06:13.504Z"
+      "updatedAt": "2026-06-29T07:33:44.256Z"
     },
     "airunway-aks-setup": {
       "source": "microsoft/azure-skills",
