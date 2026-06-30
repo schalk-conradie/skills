@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cleanup TS"
+  short_description: "Clean up TypeScript code smells safely"
+  default_prompt: "Use $cleanup-ts to clean up TypeScript code smells without changing behavior."
