@@ -1,6 +1,6 @@
 ---
 name: create-custom-ui-registry
-description: Create and publish a custom shadcn/ui registry for create-ec-app. Use when Codex needs to scaffold a registry from a registry name, clone or copy shadcn components, add a theme/global CSS registry item, publish static registry JSON publicly with GitHub Pages and gh, or verify consumption from create-ec-app.
+description: Create and publish a custom shadcn/ui registry for create-ec-app. Use when Codex needs to scaffold a registry from a registry name, clone or copy every shadcn component with the --all flag, add a theme/global CSS registry item, publish static registry JSON publicly with GitHub Pages and gh, or verify consumption from create-ec-app.
 ---
 
 # Create Custom UI Registry
@@ -19,7 +19,7 @@ Before mutating files or GitHub state, know:
 - GitHub owner and repository name.
 - Theme source: existing CSS, copied registry theme, or new token values.
 - Component source: existing registry template, official shadcn registry template, or a fresh app where shadcn components are installed and copied.
-- Component scope: all shadcn primitives only when explicitly requested; otherwise use the requested components.
+- Component scope is fixed for new registries: install every shadcn component with `npx shadcn@latest add --all`.
 
 If the registry name is present but owner/repo is missing, derive a proposal with `scripts/derive-registry-config.mjs` and confirm before publishing.
 
@@ -44,7 +44,8 @@ If the registry name is present but owner/repo is missing, derive a proposal wit
 
 4. Bring in components:
 
-   - Use shadcn CLI in a temporary app to install the requested primitives, then copy `components/ui`, `lib/utils.ts`, and needed hooks into the registry source tree.
+   - Use shadcn CLI in a temporary app and run `npx shadcn@latest add --all`, then copy `components/ui`, `lib/utils.ts`, and needed hooks into the registry source tree.
+   - Do not hand-pick a smaller component set when creating a new registry. The registry should start with every shadcn component, even if the user only names one example component.
    - Keep component internals close to shadcn defaults unless the user requests branded behavior.
    - Preserve `@ui`, `@lib`, and `@hooks` target placeholders in registry manifests so installs follow the consumer project's `components.json`.
 

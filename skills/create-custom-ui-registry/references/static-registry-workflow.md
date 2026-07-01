@@ -59,6 +59,16 @@ npx shadcn@latest build registry.json --output public/r
 }
 ```
 
+## Component Import Rule
+
+For a new registry, always pull in every shadcn component from a temporary shadcn app:
+
+```bash
+npx shadcn@latest add --all
+```
+
+Copy the resulting `components/ui`, `lib/utils.ts`, and any generated hooks into the registry source tree. Do not create a new registry from a manually selected subset of components.
+
 ## Theme Item
 
 Use a separate CSS file so installing a registry component adds the registry theme without overwriting the consumer app's base shadcn CSS.
