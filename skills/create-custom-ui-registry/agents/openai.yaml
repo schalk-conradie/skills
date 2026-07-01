@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Custom UI Registry"
+  short_description: "Scaffold shadcn registries for create-ec-app"
+  default_prompt: "Use $create-custom-ui-registry to create a public shadcn registry named acme-ui for create-ec-app."
