@@ -1,0 +1,4 @@
+interface:
+  display_name: "Auth Dynamics"
+  short_description: "Get Dynamics WebAPI bearer tokens"
+  default_prompt: "Use $auth-dynamics to get a Dynamics 365 WebAPI auth token for https://contoso.crm.dynamics.com."
