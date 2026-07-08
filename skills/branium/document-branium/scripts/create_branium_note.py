@@ -12,9 +12,19 @@ from pathlib import Path
 DEFAULT_VAULT = Path(r"C:\Users\Schalk\Documents\The Brainium")
 REGISTRY_PATH = Path("99 Meta") / "project-registry.json"
 NOTE_FOLDERS = {
+    "adr": "Decisions",
+    "architecture": "Notes",
+    "as-built": "Notes",
     "change": "Changes",
+    "conversation": "Notes",
     "decision": "Decisions",
+    "handoff": "Notes",
+    "incident": "Notes",
+    "investigation": "Notes",
+    "meeting": "Notes",
     "note": "Notes",
+    "plan": "Notes",
+    "technical-design": "Notes",
 }
 
 

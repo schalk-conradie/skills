@@ -53,6 +53,8 @@ When a clear repo, folder, or vault clue reveals a new code mapping, self-heal t
    - Default to `change`.
    - Use `decision` only for an architectural, delivery, or business decision.
    - Use `note` for general project context that is not tied to a change.
+   - Use the specialized types when the request is clearly one of them: `meeting`, `adr`, `investigation`, `incident`, `plan`, `architecture`, `technical-design`, `as-built`, `handoff`, or `conversation`.
+   - File `adr` and `decision` notes under `Decisions`; file the other specialized project note types under `Notes`.
 
 4. Write a compact note.
    - Include what changed, why, files touched, verification, and follow-up.
@@ -75,6 +77,29 @@ python .\scripts\create_branium_note.py `
 ```
 
 The script reads the Brainium registry, creates the destination folder if needed, writes a dated markdown note, and prints the created path. Use `--dry-run` before writing if the route looks uncertain.
+
+## Templates
+
+Reusable Obsidian templates live in:
+
+```text
+C:\Users\Schalk\Documents\The Brainium\90 Templates
+```
+
+Use the closest template shape when creating a body for a specialized note:
+
+- `Change Note.md` for implementation notes and fixes.
+- `Decision.md` for short delivery or design decisions.
+- `ADR.md` for architectural decision records.
+- `Meeting Note.md` for meeting notes and action capture.
+- `Investigation Note.md` for debugging, discovery, and evidence trails.
+- `Incident RCA.md` for incidents and root-cause analysis.
+- `Implementation Plan.md` for scoped plans.
+- `Architecture Note.md` for system or integration overviews.
+- `Technical Design.md` for proposed technical designs before or during implementation.
+- `As Built.md` for the implemented state after delivery.
+- `Handoff Note.md` for work transfer notes.
+- `Client Conversation.md` for stakeholder conversations.
 
 ## Note Quality
 
