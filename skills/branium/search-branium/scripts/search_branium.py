@@ -9,8 +9,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-DEFAULT_VAULT = Path(r"C:\Users\Schalk\Documents\The Brainium")
+DEFAULT_VAULT = Path("/Users/schalk/Documents/The Brainium")
 REGISTRY_PATH = Path("99 Meta") / "project-registry.json"
+HOME_ROOT = Path("100 Home")
 SKIP_DIRS = {".obsidian", ".git", ".codex", ".agents", "90 Templates"}
 
 
@@ -26,8 +27,16 @@ def normalized_path_key(raw_path: str | Path) -> str:
     return str(Path(raw_path).expanduser().resolve(strict=False)).rstrip("\\/").casefold()
 
 
+def is_under(path: Path, root: Path) -> bool:
+    path_key = normalized_path_key(path)
+    root_key = normalized_path_key(root)
+    return path_key == root_key or path_key.startswith(root_key + "\\") or path_key.startswith(root_key + "/")
+
+
 def load_registry(vault: Path) -> list[dict]:
     path = vault / REGISTRY_PATH
+    if not path.exists():
+        return []
     with path.open("r", encoding="utf-8") as handle:
         registry = json.load(handle)
     if not isinstance(registry, list):
@@ -68,6 +77,10 @@ def client_folder(vault: Path, client: str) -> Path:
     return vault / "10 Clients" / client
 
 
+def home_folder(vault: Path) -> Path:
+    return vault / HOME_ROOT
+
+
 def project_folder(vault: Path, entry: dict) -> Path:
     return Path(vault, *entry["projectFolder"].replace("\\", "/").split("/"))
 
@@ -78,23 +91,36 @@ def existing_scope_roots(vault: Path, registry: list[dict], args: argparse.Names
         entry = find_project_by_cwd(registry, Path(args.cwd))
 
     scope = args.scope
+    client_is_home = bool(args.client and args.client.casefold() == "home")
+    cwd_is_home = bool(args.cwd and is_under(Path(args.cwd), home_folder(vault)))
+
     if scope == "auto":
-        if entry:
+        if client_is_home or cwd_is_home:
+            scope = "home"
+        elif entry:
             scope = "project"
         elif args.client:
             scope = "client"
         else:
             scope = "all"
 
-    if scope == "project":
+    if scope == "home":
+        roots = [home_folder(vault)]
+        entry = None
+    elif scope == "project":
         if entry is None:
             raise LookupError("Project scope requested, but no registry project matched --cwd/--client/--project.")
         roots = [project_folder(vault, entry)]
     elif scope == "client":
-        client = args.client or (entry.get("client") if entry else None)
-        if not client:
-            raise LookupError("Client scope requested, but no client matched --cwd/--client.")
-        roots = [client_folder(vault, client)]
+        if client_is_home:
+            roots = [home_folder(vault)]
+            scope = "home"
+            entry = None
+        else:
+            client = args.client or (entry.get("client") if entry else None)
+            if not client:
+                raise LookupError("Client scope requested, but no client matched --cwd/--client.")
+            roots = [client_folder(vault, client)]
     else:
         roots = [vault]
 
@@ -221,11 +247,11 @@ def print_text(results: list[SearchResult], vault: Path, scope: str, entry: dict
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Search The Brainium Obsidian vault.")
     parser.add_argument("--vault", default=str(DEFAULT_VAULT), help="Path to The Brainium vault.")
-    parser.add_argument("--cwd", default=str(Path.cwd()), help="Current repo/project path for registry routing.")
-    parser.add_argument("--client", help="Restrict or resolve by client name.")
+    parser.add_argument("--cwd", default=str(Path.cwd()), help="Current repo/project/vault path for routing.")
+    parser.add_argument("--client", help="Restrict or resolve by client name. Use Home for the Home area.")
     parser.add_argument("--project", help="Restrict or resolve by project name.")
     parser.add_argument("--query", default="", help="Search query. If omitted, returns recent notes in scope.")
-    parser.add_argument("--scope", choices=["auto", "project", "client", "all"], default="auto")
+    parser.add_argument("--scope", choices=["auto", "project", "client", "home", "all"], default="auto")
     parser.add_argument("--limit", type=int, default=8)
     parser.add_argument("--snippets", type=int, default=2)
     parser.add_argument("--json", action="store_true", help="Emit JSON results.")

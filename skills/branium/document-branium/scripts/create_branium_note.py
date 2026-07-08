@@ -9,8 +9,9 @@ from datetime import date
 from pathlib import Path
 
 
-DEFAULT_VAULT = Path(r"C:\Users\Schalk\Documents\The Brainium")
+DEFAULT_VAULT = Path("/Users/schalk/Documents/The Brainium")
 REGISTRY_PATH = Path("99 Meta") / "project-registry.json"
+HOME_ROOT = Path("100 Home")
 NOTE_FOLDERS = {
     "adr": "Decisions",
     "architecture": "Notes",
@@ -26,10 +27,42 @@ NOTE_FOLDERS = {
     "plan": "Notes",
     "technical-design": "Notes",
 }
+HOME_NOTE_FOLDERS = {
+    "home-current-todo": "Tasks",
+    "home-document-register": "Documents",
+    "home-important-information": "Important Information",
+    "home-inventory": "Inventory",
+    "home-maintenance-log": "Maintenance",
+    "home-note": "Quick Notes",
+    "home-project": "Projects",
+    "home-quick-note": "Quick Notes",
+    "home-routine": "Maintenance",
+    "home-service-provider": "Important Information",
+    "home-shopping-list": "Lists",
+}
+HOME_INDEX_LINKS = {
+    "home-current-todo": "[[100 Home/Tasks/Current Todo|Current Todo]]",
+    "home-document-register": "[[100 Home/Documents/Document Register|Document Register]]",
+    "home-important-information": "[[100 Home/Important Information/Important Information|Important Information]]",
+    "home-inventory": "[[100 Home/Inventory/Home Inventory|Home Inventory]]",
+    "home-maintenance-log": "[[100 Home/Maintenance/Maintenance Log|Maintenance Log]]",
+    "home-note": "[[100 Home/Quick Notes/Home Quick Notes|Quick Notes]]",
+    "home-project": "[[100 Home/Projects/Home Projects|Home Projects]]",
+    "home-quick-note": "[[100 Home/Quick Notes/Home Quick Notes|Quick Notes]]",
+    "home-routine": "[[100 Home/Maintenance/Maintenance Log|Maintenance Log]]",
+    "home-service-provider": "[[100 Home/Important Information/Important Information|Important Information]]",
+    "home-shopping-list": "[[100 Home/Lists/Shopping List|Shopping List]]",
+}
 
 
 def normalized_path_key(raw_path: str | Path) -> str:
     return str(Path(raw_path).expanduser().resolve(strict=False)).rstrip("\\/").casefold()
+
+
+def is_under(path: Path, root: Path) -> bool:
+    path_key = normalized_path_key(path)
+    root_key = normalized_path_key(root)
+    return path_key == root_key or path_key.startswith(root_key + "\\") or path_key.startswith(root_key + "/")
 
 
 def slug(value: str) -> str:
@@ -50,8 +83,12 @@ def yaml_quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def load_registry(vault: Path) -> list[dict]:
+def load_registry(vault: Path, *, required: bool = True) -> list[dict]:
     path = vault / REGISTRY_PATH
+    if not path.exists():
+        if required:
+            raise FileNotFoundError(f"Brainium project registry not found: {path}")
+        return []
     with path.open("r", encoding="utf-8") as handle:
         registry = json.load(handle)
     if not isinstance(registry, list):
@@ -105,7 +142,7 @@ def unique_path(path: Path) -> Path:
     raise FileExistsError(f"Could not find an available filename for {path}")
 
 
-def build_content(args: argparse.Namespace, entry: dict, cwd: Path, note_date: str, body: str) -> str:
+def build_project_content(args: argparse.Namespace, entry: dict, cwd: Path, note_date: str, body: str) -> str:
     client = entry["client"]
     project = entry["project"]
     project_folder = entry["projectFolder"].replace("\\", "/")
@@ -138,20 +175,62 @@ def build_content(args: argparse.Namespace, entry: dict, cwd: Path, note_date: s
     return "\n".join(frontmatter + [""] + header) + "\n" + body.rstrip() + "\n"
 
 
+def build_home_content(args: argparse.Namespace, cwd: Path, note_date: str, body: str) -> str:
+    tags = list(dict.fromkeys(["area/home", f"type/{args.note_type}"]))
+    filed_under = HOME_INDEX_LINKS[args.note_type]
+
+    frontmatter = [
+        "---",
+        f"type: {args.note_type}",
+        "area: home",
+        f"status: {yaml_quote(args.status)}",
+        f"created: {note_date}",
+        f"source_path: {yaml_quote(str(cwd))}",
+        "tags:",
+    ]
+    frontmatter.extend(f"  - {tag}" for tag in tags)
+    frontmatter.append("---")
+
+    header = [
+        f"# {args.title}",
+        "",
+        "Home: [[100 Home/00 Home Dashboard|Home Dashboard]]",
+        f"Filed under: {filed_under}",
+        f"Source: `{cwd}`",
+        "",
+    ]
+
+    return "\n".join(frontmatter + [""] + header) + "\n" + body.rstrip() + "\n"
+
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Create a project note in The Brainium vault.")
+    note_type_choices = sorted(set(NOTE_FOLDERS) | set(HOME_NOTE_FOLDERS))
+    parser = argparse.ArgumentParser(description="Create a note in The Brainium vault.")
     parser.add_argument("--vault", default=str(DEFAULT_VAULT), help="Path to The Brainium vault.")
-    parser.add_argument("--cwd", default=str(Path.cwd()), help="Current project or repo path.")
+    parser.add_argument("--cwd", default=str(Path.cwd()), help="Current project, repo, or vault path.")
+    parser.add_argument("--area", choices=["auto", "project", "home"], default="auto", help="Route as a project note or Home note.")
     parser.add_argument("--client", help="Client name. Optional when cwd matches the registry.")
     parser.add_argument("--project", help="Project name. Optional when cwd matches the registry.")
     parser.add_argument("--title", required=True, help="Note title.")
-    parser.add_argument("--note-type", choices=sorted(NOTE_FOLDERS), default="change")
+    parser.add_argument("--note-type", choices=note_type_choices, default="change")
     parser.add_argument("--status", default="captured")
     parser.add_argument("--date", default=date.today().isoformat(), help="YYYY-MM-DD note date.")
     parser.add_argument("--body", default="", help="Markdown body to append after the generated header.")
     parser.add_argument("--body-file", help="Path to a UTF-8 markdown body file.")
     parser.add_argument("--dry-run", action="store_true", help="Print the destination and content without writing.")
     return parser.parse_args()
+
+
+def resolve_area(args: argparse.Namespace, vault: Path, cwd: Path) -> str:
+    if args.area != "auto":
+        return args.area
+    if args.note_type in HOME_NOTE_FOLDERS:
+        return "home"
+    if args.client and args.client.casefold() == "home":
+        return "home"
+    if is_under(cwd, vault / HOME_ROOT):
+        return "home"
+    return "project"
 
 
 def main() -> int:
@@ -162,29 +241,43 @@ def main() -> int:
     if args.body and args.body_file:
         raise ValueError("Use either --body or --body-file, not both.")
 
-    registry = load_registry(vault)
-    entry = None
-    if args.client and args.project:
-        entry = find_by_explicit(registry, args.client, args.project) or fallback_entry(args.client, args.project)
-    else:
-        entry = find_by_cwd(registry, cwd)
-
-    if entry is None:
-        registry_file = vault / REGISTRY_PATH
-        raise LookupError(
-            f"No Brainium project mapping matched cwd '{cwd}'. "
-            f"Add it to '{registry_file}' or pass --client and --project."
-        )
-
     body = args.body
     if args.body_file:
         body = Path(args.body_file).read_text(encoding="utf-8")
 
-    project_folder = Path(vault, *entry["projectFolder"].replace("\\", "/").split("/"))
-    note_folder = project_folder / NOTE_FOLDERS[args.note_type]
-    note_name = f"{args.date} {safe_filename(args.title)}.md"
-    note_path = unique_path(note_folder / note_name)
-    content = build_content(args, entry, cwd, args.date, body)
+    area = resolve_area(args, vault, cwd)
+    if area == "home":
+        if args.note_type == "change":
+            args.note_type = "home-note"
+        if args.note_type not in HOME_NOTE_FOLDERS:
+            raise ValueError(f"Note type '{args.note_type}' is not a Home note type.")
+        note_folder = vault / HOME_ROOT / HOME_NOTE_FOLDERS[args.note_type]
+        note_name = f"{args.date} {safe_filename(args.title)}.md"
+        note_path = unique_path(note_folder / note_name)
+        content = build_home_content(args, cwd, args.date, body)
+    else:
+        if args.note_type not in NOTE_FOLDERS:
+            raise ValueError(f"Note type '{args.note_type}' is not a project note type.")
+        registry = load_registry(vault, required=False)
+        entry = None
+        if args.client and args.project:
+            entry = find_by_explicit(registry, args.client, args.project) or fallback_entry(args.client, args.project)
+        else:
+            entry = find_by_cwd(registry, cwd)
+
+        if entry is None:
+            registry_file = vault / REGISTRY_PATH
+            raise LookupError(
+                f"No Brainium project mapping matched cwd '{cwd}'. "
+                f"Add it to '{registry_file}' or pass --client and --project. "
+                "For Home notes, pass --area home."
+            )
+
+        project_folder = Path(vault, *entry["projectFolder"].replace("\\", "/").split("/"))
+        note_folder = project_folder / NOTE_FOLDERS[args.note_type]
+        note_name = f"{args.date} {safe_filename(args.title)}.md"
+        note_path = unique_path(note_folder / note_name)
+        content = build_project_content(args, entry, cwd, args.date, body)
 
     if args.dry_run:
         print(f"Would write: {note_path}")
