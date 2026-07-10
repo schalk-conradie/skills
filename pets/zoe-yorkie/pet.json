@@ -2,5 +2,6 @@
   "id": "zoe-yorkie",
   "displayName": "Zoe",
   "description": "Zoe is a light gray Yorkshire Terrier wearing a pink quilted jacket.",
+  "spriteVersionNumber": 2,
   "spritesheetPath": "spritesheet.webp"
 }
