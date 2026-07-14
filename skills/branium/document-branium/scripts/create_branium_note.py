@@ -9,50 +9,103 @@ from datetime import date
 from pathlib import Path
 
 
-DEFAULT_VAULT = Path("/Users/schalk/Documents/The Brainium")
+DEFAULT_VAULT = Path(r"C:\Users\Schalk\Documents\The Brainium")
 REGISTRY_PATH = Path("99 Meta") / "project-registry.json"
 HOME_ROOT = Path("100 Home")
-NOTE_FOLDERS = {
-    "adr": "Decisions",
-    "architecture": "Notes",
-    "as-built": "Notes",
-    "change": "Changes",
-    "conversation": "Notes",
-    "decision": "Decisions",
-    "handoff": "Notes",
-    "incident": "Notes",
-    "investigation": "Notes",
-    "meeting": "Notes",
-    "note": "Notes",
-    "plan": "Notes",
-    "technical-design": "Notes",
+NOTE_TYPES = {
+    "adr": {"area": "project", "folder": "Decisions", "status": "proposed", "tags": ("type/adr",)},
+    "architecture": {"area": "project", "folder": "Notes", "status": "current", "tags": ("type/architecture",)},
+    "as-built": {"area": "project", "folder": "Notes", "status": "current", "tags": ("type/as-built",)},
+    "change": {"area": "project", "folder": "Changes", "status": "captured", "tags": ("type/change",)},
+    "conversation": {"area": "project", "folder": "Notes", "status": "captured", "tags": ("type/conversation",)},
+    "decision": {"area": "project", "folder": "Decisions", "status": "proposed", "tags": ("type/decision",)},
+    "handoff": {"area": "project", "folder": "Notes", "status": "ready", "tags": ("type/handoff",)},
+    "incident": {"area": "project", "folder": "Notes", "status": "open", "tags": ("type/incident",)},
+    "investigation": {"area": "project", "folder": "Notes", "status": "in-progress", "tags": ("type/investigation",)},
+    "meeting": {"area": "project", "folder": "Notes", "status": "captured", "tags": ("type/meeting",)},
+    "note": {"area": "project", "folder": "Notes", "status": "captured", "tags": ("type/note",)},
+    "plan": {"area": "project", "folder": "Notes", "status": "draft", "tags": ("type/plan",)},
+    "technical-design": {"area": "project", "folder": "Notes", "status": "draft", "tags": ("type/technical-design",)},
+    "home-todo": {
+        "area": "home",
+        "folder": "Tasks",
+        "status": "active",
+        "tags": ("area/home", "type/home-todo"),
+        "index_link": "[[100 Home/Tasks/Current Todo|Current Todo]]",
+    },
+    "home-document-register": {
+        "area": "home",
+        "folder": "Documents",
+        "status": "active",
+        "tags": ("area/home", "type/home-document-register"),
+        "index_link": "[[100 Home/Documents/Document Register|Document Register]]",
+    },
+    "home-important-information": {
+        "area": "home",
+        "folder": "Important Information",
+        "status": "active",
+        "tags": ("area/home", "type/home-important-information"),
+        "index_link": "[[100 Home/Important Information/Important Information|Important Information]]",
+    },
+    "home-inventory": {
+        "area": "home",
+        "folder": "Inventory",
+        "status": "active",
+        "tags": ("area/home", "type/home-inventory"),
+        "index_link": "[[100 Home/Inventory/Home Inventory|Home Inventory]]",
+    },
+    "home-maintenance-log": {
+        "area": "home",
+        "folder": "Maintenance",
+        "status": "active",
+        "tags": ("area/home", "type/home-maintenance-log"),
+        "index_link": "[[100 Home/Maintenance/Maintenance Log|Maintenance Log]]",
+    },
+    "home-note": {
+        "area": "home",
+        "folder": "Quick Notes",
+        "status": "inbox",
+        "tags": ("area/home", "type/home-note"),
+        "index_link": "[[100 Home/Quick Notes/Home Quick Notes|Quick Notes]]",
+    },
+    "home-project": {
+        "area": "home",
+        "folder": "Projects",
+        "status": "idea",
+        "tags": ("area/home", "type/home-project"),
+        "index_link": "[[100 Home/Projects/Home Projects|Home Projects]]",
+    },
+    "home-quick-note": {
+        "area": "home",
+        "folder": "Quick Notes",
+        "status": "inbox",
+        "tags": ("area/home", "type/home-quick-note"),
+        "index_link": "[[100 Home/Quick Notes/Home Quick Notes|Quick Notes]]",
+    },
+    "home-routine": {
+        "area": "home",
+        "folder": "Maintenance",
+        "status": "active",
+        "tags": ("area/home", "type/home-routine"),
+        "index_link": "[[100 Home/Maintenance/Maintenance Log|Maintenance Log]]",
+    },
+    "home-service-provider": {
+        "area": "home",
+        "folder": "Important Information",
+        "status": "active",
+        "tags": ("area/home", "type/home-service-provider"),
+        "index_link": "[[100 Home/Important Information/Important Information|Important Information]]",
+    },
+    "home-shopping-list": {
+        "area": "home",
+        "folder": "Lists",
+        "status": "active",
+        "tags": ("area/home", "type/home-shopping-list"),
+        "index_link": "[[100 Home/Lists/Shopping List|Shopping List]]",
+    },
 }
-HOME_NOTE_FOLDERS = {
-    "home-current-todo": "Tasks",
-    "home-document-register": "Documents",
-    "home-important-information": "Important Information",
-    "home-inventory": "Inventory",
-    "home-maintenance-log": "Maintenance",
-    "home-note": "Quick Notes",
-    "home-project": "Projects",
-    "home-quick-note": "Quick Notes",
-    "home-routine": "Maintenance",
-    "home-service-provider": "Important Information",
-    "home-shopping-list": "Lists",
-}
-HOME_INDEX_LINKS = {
-    "home-current-todo": "[[100 Home/Tasks/Current Todo|Current Todo]]",
-    "home-document-register": "[[100 Home/Documents/Document Register|Document Register]]",
-    "home-important-information": "[[100 Home/Important Information/Important Information|Important Information]]",
-    "home-inventory": "[[100 Home/Inventory/Home Inventory|Home Inventory]]",
-    "home-maintenance-log": "[[100 Home/Maintenance/Maintenance Log|Maintenance Log]]",
-    "home-note": "[[100 Home/Quick Notes/Home Quick Notes|Quick Notes]]",
-    "home-project": "[[100 Home/Projects/Home Projects|Home Projects]]",
-    "home-quick-note": "[[100 Home/Quick Notes/Home Quick Notes|Quick Notes]]",
-    "home-routine": "[[100 Home/Maintenance/Maintenance Log|Maintenance Log]]",
-    "home-service-provider": "[[100 Home/Important Information/Important Information|Important Information]]",
-    "home-shopping-list": "[[100 Home/Lists/Shopping List|Shopping List]]",
-}
+NOTE_TYPE_ALIASES = {"home-current-todo": "home-todo"}
+CLIENT_ALIASES = {"stellenbosch business school": "sbs"}
 
 
 def normalized_path_key(raw_path: str | Path) -> str:
@@ -63,12 +116,6 @@ def is_under(path: Path, root: Path) -> bool:
     path_key = normalized_path_key(path)
     root_key = normalized_path_key(root)
     return path_key == root_key or path_key.startswith(root_key + "\\") or path_key.startswith(root_key + "/")
-
-
-def slug(value: str) -> str:
-    text = value.casefold()
-    text = re.sub(r"[^a-z0-9]+", "-", text)
-    return text.strip("-") or "unknown"
 
 
 def safe_filename(value: str) -> str:
@@ -83,12 +130,10 @@ def yaml_quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def load_registry(vault: Path, *, required: bool = True) -> list[dict]:
+def load_registry(vault: Path) -> list[dict]:
     path = vault / REGISTRY_PATH
     if not path.exists():
-        if required:
-            raise FileNotFoundError(f"Brainium project registry not found: {path}")
-        return []
+        raise FileNotFoundError(f"Brainium project registry not found: {path}")
     with path.open("r", encoding="utf-8") as handle:
         registry = json.load(handle)
     if not isinstance(registry, list):
@@ -96,11 +141,16 @@ def load_registry(vault: Path, *, required: bool = True) -> list[dict]:
     return registry
 
 
+def canonical_client_key(client: str) -> str:
+    key = client.strip().casefold()
+    return CLIENT_ALIASES.get(key, key)
+
+
 def find_by_explicit(registry: list[dict], client: str, project: str) -> dict | None:
-    client_key = client.casefold()
+    client_key = canonical_client_key(client)
     project_key = project.casefold()
     for entry in registry:
-        if entry.get("client", "").casefold() == client_key and entry.get("project", "").casefold() == project_key:
+        if canonical_client_key(entry.get("client", "")) == client_key and entry.get("project", "").casefold() == project_key:
             return entry
     return None
 
@@ -120,16 +170,11 @@ def find_by_cwd(registry: list[dict], cwd: Path) -> dict | None:
     return sorted(matches, key=lambda item: item[0], reverse=True)[0][1]
 
 
-def fallback_entry(client: str, project: str) -> dict:
-    return {
-        "client": client,
-        "project": project,
-        "projectFolder": f"10 Clients/{client}/Projects/{project}",
-        "tags": [
-            f"client/{slug(client)}",
-            f"project/{slug(project)}",
-        ],
-    }
+def resolve_source_path(vault: Path, cwd: Path, entry: dict | None = None) -> Path | None:
+    if not is_under(cwd, vault):
+        return cwd
+    repo_path = entry.get("repoPath") if entry else None
+    return Path(repo_path).expanduser().resolve(strict=False) if repo_path else None
 
 
 def unique_path(path: Path) -> Path:
@@ -142,11 +187,23 @@ def unique_path(path: Path) -> Path:
     raise FileExistsError(f"Could not find an available filename for {path}")
 
 
-def build_project_content(args: argparse.Namespace, entry: dict, cwd: Path, note_date: str, body: str) -> str:
+def frontmatter_status(status: str | None) -> list[str]:
+    return [f"status: {yaml_quote(status)}"] if status is not None else []
+
+
+def build_project_content(
+    args: argparse.Namespace,
+    entry: dict,
+    config: dict,
+    status: str | None,
+    source_path: Path | None,
+    note_date: str,
+    body: str,
+) -> str:
     client = entry["client"]
     project = entry["project"]
     project_folder = entry["projectFolder"].replace("\\", "/")
-    tags = list(dict.fromkeys([f"type/{args.note_type}", *entry.get("tags", [])]))
+    tags = list(dict.fromkeys([*config["tags"], *entry.get("tags", [])]))
     client_link = f"[[10 Clients/{client}/{client}|{client}]]"
     project_link = f"[[{project_folder}/{project}|{project}]]"
 
@@ -155,9 +212,9 @@ def build_project_content(args: argparse.Namespace, entry: dict, cwd: Path, note
         f"type: {args.note_type}",
         f"client: {yaml_quote(client)}",
         f"project: {yaml_quote(project)}",
-        f"status: {yaml_quote(args.status)}",
+        *frontmatter_status(status),
         f"created: {note_date}",
-        f"source_path: {yaml_quote(str(cwd))}",
+        *([f"source_path: {yaml_quote(str(source_path))}"] if source_path else []),
         "tags:",
     ]
     frontmatter.extend(f"  - {tag}" for tag in tags)
@@ -168,24 +225,31 @@ def build_project_content(args: argparse.Namespace, entry: dict, cwd: Path, note
         "",
         f"Client: {client_link}",
         f"Project: {project_link}",
-        f"Source: `{cwd}`",
+        *([f"Source: `{source_path}`"] if source_path else []),
         "",
     ]
 
     return "\n".join(frontmatter + [""] + header) + "\n" + body.rstrip() + "\n"
 
 
-def build_home_content(args: argparse.Namespace, cwd: Path, note_date: str, body: str) -> str:
-    tags = list(dict.fromkeys(["area/home", f"type/{args.note_type}"]))
-    filed_under = HOME_INDEX_LINKS[args.note_type]
+def build_home_content(
+    args: argparse.Namespace,
+    config: dict,
+    status: str | None,
+    source_path: Path | None,
+    note_date: str,
+    body: str,
+) -> str:
+    tags = list(config["tags"])
+    filed_under = config["index_link"]
 
     frontmatter = [
         "---",
         f"type: {args.note_type}",
         "area: home",
-        f"status: {yaml_quote(args.status)}",
+        *frontmatter_status(status),
         f"created: {note_date}",
-        f"source_path: {yaml_quote(str(cwd))}",
+        *([f"source_path: {yaml_quote(str(source_path))}"] if source_path else []),
         "tags:",
     ]
     frontmatter.extend(f"  - {tag}" for tag in tags)
@@ -196,7 +260,7 @@ def build_home_content(args: argparse.Namespace, cwd: Path, note_date: str, body
         "",
         "Home: [[100 Home/00 Home Dashboard|Home Dashboard]]",
         f"Filed under: {filed_under}",
-        f"Source: `{cwd}`",
+        *([f"Source: `{source_path}`"] if source_path else []),
         "",
     ]
 
@@ -204,7 +268,7 @@ def build_home_content(args: argparse.Namespace, cwd: Path, note_date: str, body
 
 
 def parse_args() -> argparse.Namespace:
-    note_type_choices = sorted(set(NOTE_FOLDERS) | set(HOME_NOTE_FOLDERS))
+    note_type_choices = sorted(set(NOTE_TYPES) | set(NOTE_TYPE_ALIASES))
     parser = argparse.ArgumentParser(description="Create a note in The Brainium vault.")
     parser.add_argument("--vault", default=str(DEFAULT_VAULT), help="Path to The Brainium vault.")
     parser.add_argument("--cwd", default=str(Path.cwd()), help="Current project, repo, or vault path.")
@@ -213,7 +277,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--project", help="Project name. Optional when cwd matches the registry.")
     parser.add_argument("--title", required=True, help="Note title.")
     parser.add_argument("--note-type", choices=note_type_choices, default="change")
-    parser.add_argument("--status", default="captured")
+    parser.add_argument("--status", help="Override the selected note type's template default status.")
     parser.add_argument("--date", default=date.today().isoformat(), help="YYYY-MM-DD note date.")
     parser.add_argument("--body", default="", help="Markdown body to append after the generated header.")
     parser.add_argument("--body-file", help="Path to a UTF-8 markdown body file.")
@@ -224,7 +288,7 @@ def parse_args() -> argparse.Namespace:
 def resolve_area(args: argparse.Namespace, vault: Path, cwd: Path) -> str:
     if args.area != "auto":
         return args.area
-    if args.note_type in HOME_NOTE_FOLDERS:
+    if NOTE_TYPES[NOTE_TYPE_ALIASES.get(args.note_type, args.note_type)]["area"] == "home":
         return "home"
     if args.client and args.client.casefold() == "home":
         return "home"
@@ -246,22 +310,32 @@ def main() -> int:
         body = Path(args.body_file).read_text(encoding="utf-8")
 
     area = resolve_area(args, vault, cwd)
+    args.note_type = NOTE_TYPE_ALIASES.get(args.note_type, args.note_type)
     if area == "home":
         if args.note_type == "change":
             args.note_type = "home-note"
-        if args.note_type not in HOME_NOTE_FOLDERS:
+        config = NOTE_TYPES.get(args.note_type)
+        if config is None or config["area"] != "home":
             raise ValueError(f"Note type '{args.note_type}' is not a Home note type.")
-        note_folder = vault / HOME_ROOT / HOME_NOTE_FOLDERS[args.note_type]
+        status = args.status if args.status is not None else config["status"]
+        note_folder = vault / HOME_ROOT / config["folder"]
         note_name = f"{args.date} {safe_filename(args.title)}.md"
         note_path = unique_path(note_folder / note_name)
-        content = build_home_content(args, cwd, args.date, body)
+        content = build_home_content(args, config, status, resolve_source_path(vault, cwd), args.date, body)
     else:
-        if args.note_type not in NOTE_FOLDERS:
+        config = NOTE_TYPES.get(args.note_type)
+        if config is None or config["area"] != "project":
             raise ValueError(f"Note type '{args.note_type}' is not a project note type.")
-        registry = load_registry(vault, required=False)
-        entry = None
-        if args.client and args.project:
-            entry = find_by_explicit(registry, args.client, args.project) or fallback_entry(args.client, args.project)
+        registry = load_registry(vault)
+        if bool(args.client) != bool(args.project):
+            raise ValueError("Project notes require both --client and --project when either is supplied.")
+        if args.client:
+            entry = find_by_explicit(registry, args.client, args.project)
+            if entry is None:
+                raise LookupError(
+                    f"No Brainium project registry entry matched --client '{args.client}' "
+                    f"and --project '{args.project}'."
+                )
         else:
             entry = find_by_cwd(registry, cwd)
 
@@ -269,15 +343,24 @@ def main() -> int:
             registry_file = vault / REGISTRY_PATH
             raise LookupError(
                 f"No Brainium project mapping matched cwd '{cwd}'. "
-                f"Add it to '{registry_file}' or pass --client and --project. "
+                f"Add it to '{registry_file}' or pass --client and --project for an existing registry entry. "
                 "For Home notes, pass --area home."
             )
 
         project_folder = Path(vault, *entry["projectFolder"].replace("\\", "/").split("/"))
-        note_folder = project_folder / NOTE_FOLDERS[args.note_type]
+        status = args.status if args.status is not None else config["status"]
+        note_folder = project_folder / config["folder"]
         note_name = f"{args.date} {safe_filename(args.title)}.md"
         note_path = unique_path(note_folder / note_name)
-        content = build_project_content(args, entry, cwd, args.date, body)
+        content = build_project_content(
+            args,
+            entry,
+            config,
+            status,
+            resolve_source_path(vault, cwd, entry),
+            args.date,
+            body,
+        )
 
     if args.dry_run:
         print(f"Would write: {note_path}")

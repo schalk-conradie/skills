@@ -1,6 +1,6 @@
 ---
 name: document-branium
-description: Create or update project and Home notes in the user's Obsidian vault at `/Users/schalk/Documents/The Brainium`. Use when the user says phrases like "Document this change in the branium", "document this in Brainium", "add this to my second brain", or asks Codex to capture project/client context, Home context, implementation notes, decisions, fixes, todos, shopping lists, documents, maintenance, inventory, or important household information into the vault.
+description: Create or update project and Home notes in the user's Obsidian vault at `C:\Users\Schalk\Documents\The Brainium`. Use when the user says phrases like "Document this change in the branium", "document this in Brainium", "add this to my second brain", or asks Codex to capture project/client context, Home context, implementation notes, decisions, fixes, todos, shopping lists, documents, maintenance, inventory, or important household information into the vault.
 ---
 
 # Document Branium
@@ -15,13 +15,13 @@ Use this skill to turn the current work context into a concise Brainium note und
 The vault root is:
 
 ```text
-/Users/schalk/Documents/The Brainium
+C:\Users\Schalk\Documents\The Brainium
 ```
 
 The project routing registry is used only for client/project notes:
 
 ```text
-/Users/schalk/Documents/The Brainium/99 Meta/project-registry.json
+C:\Users\Schalk\Documents\The Brainium\99 Meta\project-registry.json
 ```
 
 ## Home Structure
@@ -46,7 +46,7 @@ Use these existing notes first instead of creating duplicates:
 Home templates live in:
 
 ```text
-/Users/schalk/Documents/The Brainium/90 Templates/Home
+C:\Users\Schalk\Documents\The Brainium\90 Templates\Home
 ```
 
 Every Home-specific template is prefixed with `Home`, for example `Home Quick Note.md`, `Home Project.md`, and `Home Shopping List.md`.
@@ -63,9 +63,11 @@ Project folders are generally named `Client - Project`, where the leading code m
 | AGI | Allan Gray Institutional |
 | E6 | Element 6 |
 | EC | Enterprise cloud |
-| SBS | Stellenbosch Business School |
+| SBS | SBS |
 
-When a clear repo, folder, or vault clue reveals a new code mapping, self-heal the convention by updating this section, the matching section in `/Users/schalk/.agents/skills/branium/search-branium/SKILL.md`, and `/Users/schalk/Documents/The Brainium/AGENTS.md`. Do not infer a new mapping from the code alone; ask if the evidence is unclear.
+`SBS` is the canonical client key and folder name; `Stellenbosch Business School` is accepted as a human-readable alias.
+
+When a clear repo, folder, or vault clue reveals a new code mapping, self-heal the convention by updating this section, the matching section in `C:\Users\Schalk\.agents\skills\branium\search-branium\SKILL.md`, and `C:\Users\Schalk\Documents\The Brainium\AGENTS.md`. Do not infer a new mapping from the code alone; ask if the evidence is unclear.
 
 ## Workflow
 
@@ -95,7 +97,8 @@ When a clear repo, folder, or vault clue reveals a new code mapping, self-heal t
    - If the user explicitly named a client/project, use that and check the registry for the matching `projectFolder`.
    - If a repo or folder name follows `Client - Project`, use the project-folder naming map as the default client context unless stronger observed evidence says otherwise.
    - If the client/project is unclear, ask one concise question instead of guessing.
-   - If a new project is obvious, add the project to the vault and registry with the same folder pattern.
+   - Project writes require an existing entry in `99 Meta\project-registry.json`. Never invent a synthetic route from command-line client/project values.
+   - If a new project is obvious but unregistered, update the vault and registry as a separate, deliberate step before creating its project note.
 
 5. Choose the note type.
    - For client/project notes, default to `change`.
@@ -103,7 +106,8 @@ When a clear repo, folder, or vault clue reveals a new code mapping, self-heal t
    - Use `note` for general project context that is not tied to a change.
    - Use the specialized project types when the request is clearly one of them: `meeting`, `adr`, `investigation`, `incident`, `plan`, `architecture`, `technical-design`, `as-built`, `handoff`, or `conversation`.
    - File client/project `adr` and `decision` notes under `Decisions`; file the other specialized project note types under `Notes` unless the script's existing folder map says otherwise.
-   - For Home notes, use Home types such as `home-note`, `home-quick-note`, `home-project`, `home-service-provider`, `home-routine`, `home-shopping-list`, `home-document-register`, `home-important-information`, `home-maintenance-log`, or `home-inventory`.
+   - For Home notes, use Home types such as `home-note`, `home-quick-note`, `home-project`, `home-service-provider`, `home-routine`, `home-shopping-list`, `home-document-register`, `home-important-information`, `home-maintenance-log`, `home-inventory`, or `home-todo`.
+   - `home-todo` is canonical. The script accepts legacy `home-current-todo` input but writes `type: home-todo`.
 
 6. Write compact, factual content.
    - For project changes, include what changed, why, files touched, verification, and follow-up.
@@ -123,32 +127,34 @@ Use the bundled script from this skill folder.
 
 Client/project example:
 
-```bash
-python scripts/create_branium_note.py \
-  --cwd "/Users/schalk/Code/AGR - SWOT Rewrite" \
-  --title "Fix rich text field save binding" \
-  --note-type change \
-  --body "## Context\n- ...\n\n## What Changed\n- ...\n\n## Verification\n- npm run build"
+```powershell
+python .\scripts\create_branium_note.py `
+  --cwd "C:\Users\Schalk\Code\AGR - SWOT Rewrite" `
+  --title "Fix rich text field save binding" `
+  --note-type change `
+  --body "## Context`n- ...`n`n## What Changed`n- ...`n`n## Verification`n- npm run build"
 ```
 
 Home example for a new quick note:
 
-```bash
-python scripts/create_branium_note.py \
-  --area home \
-  --note-type home-quick-note \
-  --title "Garage shelf measurements" \
-  --body "## Note\n- ...\n\n## Next Action\n- [ ] ..."
+```powershell
+python .\scripts\create_branium_note.py `
+  --area home `
+  --note-type home-quick-note `
+  --title "Garage shelf measurements" `
+  --body "## Note`n- ...`n`n## Next Action`n- [ ] ..."
 ```
 
-The script reads the Brainium registry only for project routing, creates the destination folder if needed, writes a dated markdown note, and prints the created path. Use `--dry-run` before writing if the route looks uncertain.
+The script requires the Brainium registry for project routing, creates the destination note-type folder if needed, writes a dated markdown note, and prints the created path. It derives folder, default status, and tags from the matching vault template; `--status` overrides that default. Home routing does not require the project registry.
+
+Source provenance records an external `--cwd` unchanged. When `--cwd` is inside the Brainium vault, a project note uses the registered `repoPath` if one exists and otherwise omits `source_path` and `Source`; a Home note created from inside the vault also omits them. Use `--dry-run` before writing if the route looks uncertain.
 
 ## Templates
 
 Reusable Obsidian templates live in:
 
 ```text
-/Users/schalk/Documents/The Brainium/90 Templates
+C:\Users\Schalk\Documents\The Brainium\90 Templates
 ```
 
 Use the closest template shape when creating a body for a specialized project note:

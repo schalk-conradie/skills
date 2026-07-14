@@ -1,4 +1,0 @@
-interface:
-  display_name: "D365 As-Built"
-  short_description: "Build Dynamics 365 as-built docs from solution metadata"
-  default_prompt: "Use this skill to generate chapter-by-chapter Dynamics 365 as-built documentation from extracted unmanaged solution metadata and to refine final DOCX structure/style safely."

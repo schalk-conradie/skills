@@ -1,6 +1,6 @@
 ---
 name: search-branium
-description: Search and retrieve relevant context from the user's Obsidian vault at `/Users/schalk/Documents/The Brainium`. Use when the user asks to reference, look up, retrieve, search, recall, or find notes from Brainium or "branium", especially while working in a client/project repo or needing prior Home context such as todos, shopping lists, documents, maintenance, inventory, important household information, decisions, change notes, integration notes, or verification history.
+description: Search and retrieve relevant context from the user's Obsidian vault at `C:\Users\Schalk\Documents\The Brainium`. Use when the user asks to reference, look up, retrieve, search, recall, or find notes from Brainium or "branium", especially while working in a client/project repo or needing prior Home context such as todos, shopping lists, documents, maintenance, inventory, important household information, decisions, change notes, integration notes, or verification history.
 ---
 
 # Search Branium
@@ -12,13 +12,13 @@ Use this skill to find useful Brainium notes before answering a project or Home 
 The vault root is:
 
 ```text
-/Users/schalk/Documents/The Brainium
+C:\Users\Schalk\Documents\The Brainium
 ```
 
 The project routing registry is used only for client/project search:
 
 ```text
-/Users/schalk/Documents/The Brainium/99 Meta/project-registry.json
+C:\Users\Schalk\Documents\The Brainium\99 Meta\project-registry.json
 ```
 
 ## Home Structure
@@ -26,7 +26,7 @@ The project routing registry is used only for client/project search:
 The Home area lives under:
 
 ```text
-/Users/schalk/Documents/The Brainium/100 Home
+C:\Users\Schalk\Documents\The Brainium\100 Home
 ```
 
 Important Home entry points:
@@ -56,9 +56,11 @@ Project folders are generally named `Client - Project`, where the leading code m
 | AGI | Allan Gray Institutional |
 | E6 | Element 6 |
 | EC | Enterprise cloud |
-| SBS | Stellenbosch Business School |
+| SBS | SBS |
 
-When a clear repo, folder, or vault clue reveals a new code mapping, self-heal the convention by updating this section, the matching section in `/Users/schalk/.agents/skills/branium/document-branium/SKILL.md`, and `/Users/schalk/Documents/The Brainium/AGENTS.md`. Do not infer a new mapping from the code alone; ask if the evidence is unclear.
+`SBS` is the canonical client key and folder name; `Stellenbosch Business School` is accepted as a human-readable alias.
+
+When a clear repo, folder, or vault clue reveals a new code mapping, self-heal the convention by updating this section, the matching section in `C:\Users\Schalk\.agents\skills\branium\document-branium\SKILL.md`, and `C:\Users\Schalk\Documents\The Brainium\AGENTS.md`. Do not infer a new mapping from the code alone; ask if the evidence is unclear.
 
 ## Workflow
 
@@ -79,27 +81,27 @@ When a clear repo, folder, or vault clue reveals a new code mapping, self-heal t
 
 Client/project example:
 
-```bash
-python scripts/search_branium.py \
-  --cwd "/Users/schalk/Code/AGR - SWOT Rewrite" \
+```powershell
+python .\scripts\search_branium.py `
+  --cwd "C:\Users\Schalk\Code\AGR - SWOT Rewrite" `
   --query "audit history rich text field"
 ```
 
 Home examples:
 
-```bash
-python scripts/search_branium.py --scope home --query "insurance renewal"
-python scripts/search_branium.py --scope home --query "shopping"
-python scripts/search_branium.py --scope home --query ""
+```powershell
+python .\scripts\search_branium.py --scope home --query "insurance renewal"
+python .\scripts\search_branium.py --scope home --query "shopping"
+python .\scripts\search_branium.py --scope home --query ""
 ```
 
 Useful options:
 
-```bash
-python scripts/search_branium.py --query "PRP2 Product Group" --scope all
-python scripts/search_branium.py --client "Element 6" --query "JDE" --scope client
-python scripts/search_branium.py --cwd "/Users/schalk/Code/repo" --query "payment bypass" --scope project --json
-python scripts/search_branium.py --scope home --query "geyser" --json
+```powershell
+python .\scripts\search_branium.py --query "PRP2 Product Group" --scope all
+python .\scripts\search_branium.py --client "Element 6" --query "JDE" --scope client
+python .\scripts\search_branium.py --cwd "C:\Users\Schalk\Code\repo" --query "payment bypass" --scope project --json
+python .\scripts\search_branium.py --scope home --query "geyser" --json
 ```
 
 4. Read the top matching notes before answering.
@@ -118,5 +120,7 @@ Default `--scope auto` means:
 - Search the whole vault when no project, client, or Home mapping exists.
 
 Explicit `--scope home` searches only `100 Home` and skips template/config folders.
+
+Default knowledge search excludes `AGENTS.md`, `99 Meta`, `90 Templates`, application/config folders such as `.obsidian`, and `*.excalidraw.md` implementation files. Client, project, Home, Research, Study, Inbox, and other ordinary knowledge notes remain searchable. If a registry entry resolves but its `projectFolder` is missing, the script reports the affected client/project and path instead of silently widening the search.
 
 Do not treat the first match as truth. Use the snippets as a locator, then inspect the note itself if the answer depends on exact wording.

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Create Glaze App"
-  short_description: "Generate, install, and package Glaze apps"
-  default_prompt: "Use $create-glaze-app to generate, install, and package a custom Glaze desktop app from Glaze's official template."

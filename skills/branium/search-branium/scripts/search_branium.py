@@ -9,10 +9,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-DEFAULT_VAULT = Path("/Users/schalk/Documents/The Brainium")
+DEFAULT_VAULT = Path(r"C:\Users\Schalk\Documents\The Brainium")
 REGISTRY_PATH = Path("99 Meta") / "project-registry.json"
 HOME_ROOT = Path("100 Home")
-SKIP_DIRS = {".obsidian", ".git", ".codex", ".agents", "90 Templates"}
+SKIP_DIRS = {".obsidian", ".git", ".codex", ".agents", "90 templates", "99 meta"}
+SKIP_FILES = {"agents.md"}
+CLIENT_ALIASES = {"stellenbosch business school": "sbs"}
 
 
 @dataclass
@@ -44,6 +46,20 @@ def load_registry(vault: Path) -> list[dict]:
     return registry
 
 
+def canonical_client_key(client: str) -> str:
+    key = client.strip().casefold()
+    return CLIENT_ALIASES.get(key, key)
+
+
+def registered_client_name(registry: list[dict], client: str) -> str:
+    client_key = canonical_client_key(client)
+    for entry in registry:
+        registered_client = entry.get("client", "")
+        if canonical_client_key(registered_client) == client_key:
+            return registered_client
+    return "SBS" if client_key == "sbs" else client
+
+
 def find_project_by_cwd(registry: list[dict], cwd: Path) -> dict | None:
     cwd_key = normalized_path_key(cwd)
     matches: list[tuple[int, dict]] = []
@@ -62,10 +78,10 @@ def find_project_by_cwd(registry: list[dict], cwd: Path) -> dict | None:
 def find_project_by_name(registry: list[dict], client: str | None, project: str | None) -> dict | None:
     if not client and not project:
         return None
-    client_key = client.casefold() if client else None
+    client_key = canonical_client_key(client) if client else None
     project_key = project.casefold() if project else None
     for entry in registry:
-        if client_key and entry.get("client", "").casefold() != client_key:
+        if client_key and canonical_client_key(entry.get("client", "")) != client_key:
             continue
         if project_key and entry.get("project", "").casefold() != project_key:
             continue
@@ -110,7 +126,13 @@ def existing_scope_roots(vault: Path, registry: list[dict], args: argparse.Names
     elif scope == "project":
         if entry is None:
             raise LookupError("Project scope requested, but no registry project matched --cwd/--client/--project.")
-        roots = [project_folder(vault, entry)]
+        root = project_folder(vault, entry)
+        if not root.is_dir():
+            raise FileNotFoundError(
+                f"Brainium registry entry '{entry.get('client')} / {entry.get('project')}' "
+                f"points to a missing project folder: {root}"
+            )
+        roots = [root]
     elif scope == "client":
         if client_is_home:
             roots = [home_folder(vault)]
@@ -120,7 +142,7 @@ def existing_scope_roots(vault: Path, registry: list[dict], args: argparse.Names
             client = args.client or (entry.get("client") if entry else None)
             if not client:
                 raise LookupError("Client scope requested, but no client matched --cwd/--client.")
-            roots = [client_folder(vault, client)]
+            roots = [client_folder(vault, registered_client_name(registry, client))]
     else:
         roots = [vault]
 
@@ -144,14 +166,21 @@ def count_term(text: str, term: str) -> int:
 def iter_markdown_files(roots: list[Path]) -> list[Path]:
     files: list[Path] = []
     for root in roots:
-        if root.is_file() and root.suffix.casefold() == ".md":
+        if root.is_file() and is_knowledge_note(root):
             files.append(root)
             continue
         for path in root.rglob("*.md"):
-            if any(part in SKIP_DIRS for part in path.parts):
+            if not is_knowledge_note(path):
                 continue
             files.append(path)
     return sorted(set(files), key=lambda item: str(item).casefold())
+
+
+def is_knowledge_note(path: Path) -> bool:
+    name = path.name.casefold()
+    if path.suffix.casefold() != ".md" or name in SKIP_FILES or name.endswith(".excalidraw.md"):
+        return False
+    return not any(part.casefold() in SKIP_DIRS for part in path.parts)
 
 
 def read_text(path: Path) -> str:

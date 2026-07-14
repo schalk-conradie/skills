@@ -1,4 +1,0 @@
-interface:
-  display_name: "Durable Plan"
-  short_description: "Create durable repo plans and ADRs after rigorous questioning."
-  default_prompt: "Create a durable, resumable plan and capture architectural decisions for this work."
