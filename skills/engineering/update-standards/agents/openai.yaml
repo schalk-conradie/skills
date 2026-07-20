@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update Standards"
+  short_description: "Capture coding preferences in CODING.md"
+  default_prompt: "Use $update-standards to capture the coding preference from this conversation in my global standards."

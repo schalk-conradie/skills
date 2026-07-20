@@ -1,53 +1,26 @@
-## Operating Mode
+# Working Style
 
-Act like an efficient senior developer. Solve the real problem with the smallest clear change.
+- Lead with the outcome. Default to concise answers, short paragraphs, and useful bullets. Avoid walls of text; expand when asked or when risk requires it.
+- Solve the real problem with the smallest clear change. Read the relevant code path before editing; do not guess.
 
-Before editing, read the task and trace the real code path. Don't guess.
+# Autonomy
 
-## Autonomy
+- Do not use subagents unless I explicitly ask.
+- For review, explanation, diagnosis, or planning, inspect and report; do not edit.
+- For change, build, or fix requests, make only the requested in-scope changes and run the smallest relevant checks.
+- Ask before destructive actions, external writes, production dependency changes, or materially expanding scope. Do not commit or push unless asked.
 
-- For review, explanation, diagnosis, or planning requests, inspect and report; don't edit unless asked.
-- For change, build, or fix requests, make the requested in-scope local changes and run relevant non-destructive checks.
-- Ask before destructive actions, external writes, production dependency changes, or materially expanding scope. Don't commit or push unless asked.
+# Engineering
 
-## YAGNI Build Ladder
+- Apply YAGNI: prefer existing code, the standard library, platform features, and installed dependencies before adding code.
+- Fix root causes without unrelated refactoring. Preserve meaningful errors.
+- For version-sensitive behavior, inspect pinned versions, local types/source, and existing tests. When external verification is needed, use official documentation appropriate to the pinned version.
+- Add the smallest useful test for non-trivial behavior changes. Report any relevant checks that were not run.
+- Before modifying code, read and follow `~/.codex/CODING.md`. Repository instructions and established project conventions take precedence.
 
-Stop at the first rung that solves the task:
+# Environment
 
-1. Does this need to exist at all?
-2. Does the codebase, standard library, platform, or an installed dependency already solve it?
-3. Can this be a small direct change?
-4. Write the minimum new code.
-
-## What Not To Add
-
-- No speculative abstractions or indirection without a concrete current benefit: single-use helpers, wrapper layers, interfaces with one implementation, factories/providers/managers/resolvers, unused config, or caches without demonstrated value.
-- No decorative validation, hidden fallbacks, or new dependencies unless existing options are clearly insufficient.
-- Don't silently swallow errors. Preserve meaningful failures; don't trap and return a sentinel or default unless the requirement says missing data is acceptable.
-- Don't duplicate at runtime what the compiler and actual ownership guarantees already prove for trusted internal values. No redundant null checks, type guards, or assertions. Type annotations alone do not prove external input, deserialized data, configuration, API responses, or untyped boundaries.
-- No broad refactors unrelated to the request.
-
-## Version-Sensitive Docs
-
-Do not rely on memory for version-sensitive behaviour in an API, SDK, library, CLI, framework, or service.
-
-Check the repository's pinned version, local types/source, and existing tests first. When the task depends on external behaviour, verify it against official documentation for the version in use.
-
-Do not apply latest-version guidance to an older pinned dependency. If authoritative sources disagree, state the conflict.
-
-## Changes
-
-- Prefer deletion over addition when it fully solves the task and preserves clarity and behaviour. Prefer direct code over indirection, concrete logic over generic frameworks, and boring code over clever code.
-- Fix root causes, not symptoms. Inspect the shared function and callers before patching one path.
-- Add the smallest useful test for non-trivial behaviour changes. Run the smallest relevant existing test, lint, typecheck, or build checks for the changed area. If an obvious check is not run, say why.
-
-## Machine
-
-- The local host is MacOS M4 Pro ARM. Detect the actual shell and execution environment before using OS-specific commands.
-- `mise` is installed and so is `brew`. Use brew or mise for tooling.
-
-## Skills
-
-Create and install personal skills in `~/.agents/skills`. Never use `~/.codex/skills`.
-
-This keeps personal skills synchronized across my machines.
+- **OS & package managers**: Detect the current operating system before selecting commands or installation steps. Check whether `mise`, `brew`, and `winget` are installed, and use only a package manager that is available and appropriate for that OS.
+- **Shells**: On Windows, use PowerShell 7 where possible instead of CMD. On macOS, always use `zsh` when it is available.
+- **Tool precedence**: Prefer `mise` for managing runtimes and development tools when it is available. For .NET work, use the installed .NET tooling (`dotnet` and its supported SDK/workload mechanisms) instead of `mise`; otherwise use the appropriate available system package manager.
+- **Personal skills**: Create and install personal skills only in `~/.agents/skills`, never in `~/.codex/skills`.
