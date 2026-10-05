@@ -40,6 +40,15 @@
       "pluginName": "mattpocock-skills",
       "installedAt": "2026-07-28T10:19:59.630Z",
       "updatedAt": "2026-07-28T10:19:59.630Z"
+    },
+    "microsoft-foundry": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/microsoft/azure-skills.git",
+      "skillPath": ".github/plugins/azure-skills/skills/microsoft-foundry/SKILL.md",
+      "skillFolderHash": "96c7952ad179b4c03be3791eeabe7e1b31a85972",
+      "installedAt": "2026-10-01T09:28:29.519Z",
+      "updatedAt": "2026-10-01T09:28:29.519Z"
     }
   },
   "dismissed": {

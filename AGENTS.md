@@ -22,9 +22,7 @@ These are personal defaults. Explicit user instructions take precedence over the
 
 ## Environment
 
-- On macOS, use `zsh` when available. On Windows, prefer PowerShell 7.
-- Prefer `mise` for runtimes and development tools when it is already installed.
+- On macOS, use `zsh` when available.
 - Treat `~/.agents` as the canonical location for shared instructions and personal skills. Harness directories contain links into it.
 - Keep shared configuration and skill scripts compatible with macOS and Windows. Use platform-appropriate commands and paths.
 - Create personal skills under `~/.agents/skills/personal/<name>`, then run `~/.agents/install.sh` or `~/.agents/install.ps1`.
-- In Dynamics 365 and Power Platform, establish the target environment and solution from context or inspection before making changes. Ask if either remains unclear. Add only the components required by the change and avoid unnecessary dependencies.

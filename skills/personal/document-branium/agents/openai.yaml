@@ -1,4 +1,0 @@
-interface:
-  display_name: "Document Branium"
-  short_description: "Write project and Home notes into The Brainium"
-  default_prompt: "Use $document-branium to document this in The Brainium."

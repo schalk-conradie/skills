@@ -50,25 +50,16 @@ Personal skills live in `skills/personal/<name>/SKILL.md`. Third-party skills in
 | Skill | Use |
 | --- | --- |
 | [bro](skills/personal/bro/SKILL.md) | Restate the previous reply in plain language |
-| [create-custom-ui-registry](skills/personal/create-custom-ui-registry/SKILL.md) | Create and publish a static shadcn/ui registry for create-ec-app |
-| [document-branium](skills/personal/document-branium/SKILL.md) | Create or update project and Home notes in the Brainium vault |
-| [dynamics-webapi](skills/personal/dynamics-webapi/SKILL.md) | Read-only Dynamics 365 and Dataverse Web API queries |
-| [search-branium](skills/personal/search-branium/SKILL.md) | Find project or Home context in the Brainium vault |
 | [update-standards](skills/personal/update-standards/SKILL.md) | Capture coding preferences in `CODING.md` |
 
 To add a skill, create `skills/personal/<name>/SKILL.md` and rerun the installer. To install these skills into another agent or scope, the [Agent Skills CLI](https://github.com/vercel-labs/skills) works with this repo:
 
 ```bash
 npx skills add schalk-conradie/skills --all -g -y
-npx skills add schalk-conradie/skills --skill dynamics-webapi
+npx skills add schalk-conradie/skills --skill bro
 ```
 
-Skill scripts are Python standard library only (`python3` on macOS, `python` or `py` on Windows) or Node, and have unit tests under `tests/` where behaviour is non-trivial:
-
-```bash
-python3 -m unittest discover -s skills/personal/document-branium/tests
-python3 -m unittest discover -s skills/personal/search-branium/tests
-```
+Skill scripts use the Python standard library only (`python3` on macOS, `python` or `py` on Windows) or Node, and have unit tests under `tests/` where behaviour is non-trivial. Run them with `python3 -m unittest discover -s skills/personal/<name>/tests`.
 
 ## Repository layout
 

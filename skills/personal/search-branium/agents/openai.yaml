@@ -1,4 +1,0 @@
-interface:
-  display_name: "Search Branium"
-  short_description: "Find project and Home context in The Brainium"
-  default_prompt: "Use $search-branium to find the relevant context in The Brainium."
