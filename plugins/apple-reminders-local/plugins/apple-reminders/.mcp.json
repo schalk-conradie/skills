@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "apple_reminders": {
+      "command": "/Users/schalk/.local/share/fnm/node-versions/v24.21.0/installation/bin/node",
+      "args": ["./server.mjs"],
+      "cwd": "./",
+      "tool_timeout_sec": 210
+    }
+  }
+}

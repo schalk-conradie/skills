@@ -1,0 +1,11 @@
+{
+  "name": "apple-reminders",
+  "version": "1.1.0",
+  "description": "Read and manage Apple Reminders locally on macOS.",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Apple Reminders",
+    "shortDescription": "Your Apple Reminders in a visual panel.",
+    "defaultPrompt": ["Open my Apple Reminders dashboard."]
+  }
+}
