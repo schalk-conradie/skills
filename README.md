@@ -49,6 +49,7 @@ Personal skills live in `skills/personal/<name>/SKILL.md`. Third-party skills in
 
 | Skill | Use |
 | --- | --- |
+| [action-items](skills/personal/action-items/SKILL.md) | Pull the outstanding to-dos out of the current chat |
 | [bro](skills/personal/bro/SKILL.md) | Restate the previous reply in plain language |
 | [update-standards](skills/personal/update-standards/SKILL.md) | Capture coding preferences in `CODING.md` |
 
