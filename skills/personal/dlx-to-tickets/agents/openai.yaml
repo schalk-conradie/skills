@@ -1,0 +1,5 @@
+interface:
+  display_name: "DLX To Tickets"
+  short_description: "Cut a signed-off handover into .scratch tickets"
+policy:
+  allow_implicit_invocation: false

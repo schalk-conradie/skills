@@ -1,0 +1,5 @@
+interface:
+  display_name: "DLX Implement"
+  short_description: "Build one handover ticket, uncommitted for review"
+policy:
+  allow_implicit_invocation: false
