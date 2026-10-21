@@ -20,7 +20,7 @@ An explicit request to use this skill is permission to edit the file. Ask one qu
 
 Read the whole file first. If an existing rule already covers the lesson, sharpen that rule instead of adding a second one.
 
-Place the rule in the narrowest section. Language-independent rules go under `## General`, TypeScript rules under `## TypeScript`, each under the closest existing `###` heading. Create a subsection only when nothing fits. Preferred TypeScript subsection order: `Types and boundaries`, `Functions and abstractions`, `Error handling`, `Dependencies`, `Testing`, `Style and syntax`, `Tooling`.
+Place the rule in the narrowest section. Language-independent rules go under `## General`, TypeScript rules under `## TypeScript`, each under the closest existing `###` heading. Create a subsection only when nothing fits. Preferred TypeScript subsection order: `Types and boundaries`, `Functions and abstractions`, `Error handling`, `Testing`, `Style and syntax`. Dependency rules belong under `## General`.
 
 Write the smallest rule that keeps the lesson. One bullet, concrete and observable, stating the desired behaviour. Add a prohibition or exception only when it prevents likely misuse. No dates, chat history, or rationale paragraphs. Absolute wording only when the preference is absolute.
 

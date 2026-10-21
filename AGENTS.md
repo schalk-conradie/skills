@@ -11,7 +11,7 @@ These are personal defaults. Explicit user instructions take precedence over the
 - Obtain explicit confirmation before changing production systems or data, or triggering a production deployment. A general implementation or fix request does not grant this. Once a production action and scope are confirmed in the chat, small follow-up changes within that same scope don't need asking again.
 - Treat follow-up corrections and questions as part of the active task unless the user cancels or replaces it. Preserve completed work and finish the remaining scope.
 - Preserve unrelated local changes. Stage only the files or hunks that belong to the requested commit.
-- Never add Claude attribution to commits or pull requests: no `Co-Authored-By` lines, no "Generated with Claude Code" footers. Commits are authored by me, using my git identity.
+- Never add AI or agent attribution to commits or pull requests: no `Co-Authored-By` lines, no "Generated with" footers. Commits are authored by me, using my git identity.
 
 ## Instructions and evidence
 
