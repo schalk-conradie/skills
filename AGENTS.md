@@ -13,6 +13,21 @@ These are personal defaults. Explicit user instructions take precedence over the
 - Preserve unrelated local changes. Stage only the files or hunks that belong to the requested commit.
 - Never add AI or agent attribution to commits or pull requests: no `Co-Authored-By` lines, no "Generated with" footers. Commits are authored by me, using my git identity.
 
+## Asking for decisions
+
+These rules apply whenever you ask me a question or need a decision: clarifying questions, ticket slicing, planning, and any skill or tool step that asks me to choose. Look for the answer first in the code, docs, tickets and conversation, and ask only what is missing, unclear or contradictory.
+
+Write each question for someone who has not looked at the work in days and may read it on a phone. It must make sense on its own, without code, tickets or earlier output open:
+
+- **The question**, in one plain sentence.
+- **Where:** the feature, ticket or part of the work it concerns.
+- **What I found:** the evidence that raised it, quoted or named by file, and what is missing or conflicting.
+- **Why it matters:** what depends on the answer, in practical terms.
+- **I recommend:** the answer, and the reason in one or two sentences.
+- **Other option:** the main alternative, and what would be different.
+
+Use plain words. Name things the way I or the client do, explain any internal or technical term, and describe the effect on people and the work rather than the code structure behind it. Put one decision in each question. A plain fact only I can supply needs one line: what you need and where it will be used. When a question tool limits the text, put this in the message before it or in the option descriptions.
+
 ## Instructions and evidence
 
 - Read and follow `~/.agents/STYLE.md` for user-facing prose.
