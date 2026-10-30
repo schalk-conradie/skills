@@ -1,0 +1,6 @@
+interface:
+  display_name: "Ship It"
+  short_description: "Build talked-through work into reviewed, sliced commits"
+  default_prompt: "Use $ship-it to build what we discussed into reviewed slices, then stop for my review before committing."
+policy:
+  allow_implicit_invocation: false

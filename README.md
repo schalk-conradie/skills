@@ -51,6 +51,7 @@ Personal skills live in `skills/personal/<name>/SKILL.md`. Third-party skills in
 | --- | --- |
 | [action-items](skills/personal/action-items/SKILL.md) | Pull the outstanding to-dos out of the current chat |
 | [bro](skills/personal/bro/SKILL.md) | Restate the previous reply in plain language |
+| [ship-it](skills/personal/ship-it/SKILL.md) | Build talked-through work into reviewed, sliced local commits |
 | [update-standards](skills/personal/update-standards/SKILL.md) | Capture coding preferences in `CODING.md` |
 
 To add a skill, create `skills/personal/<name>/SKILL.md` and rerun the installer. To install these skills into another agent or scope, the [Agent Skills CLI](https://github.com/vercel-labs/skills) works with this repo:
